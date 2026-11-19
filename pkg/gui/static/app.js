@@ -646,7 +646,7 @@ $("quit").addEventListener("click", async () => {
   await api("/api/quit", {}).catch(() => {});
   const main = el("main", { className: "view" },
     el("section", { className: "empty-state" },
-      el("img", { src: "logo.svg", alt: "", width: 48, height: 48 }),
+      el("img", { src: "mark.svg", alt: "", width: 48, height: 48 }),
       el("h1", { className: "view-title", textContent: t("stopped") }),
       el("p", { textContent: t("closeTab") })));
   document.body.replaceChildren(main);

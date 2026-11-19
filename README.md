@@ -279,13 +279,13 @@ from `winres/icon.png` with
 
 | | |
 |---|---|
-| Logo | A play button turned into a download arrow, landing on an amber tray: a stream becoming a file. [`docs/logo.svg`](docs/logo.svg) |
-| Cobalt `#2F5BEA` | Brand, links, selected controls |
-| Ink `#14213D` | Text |
-| Fog `#EEF1F6` | Background |
-| Amber `#F2A20C` | Progress only — the moment a file is being made |
+| Logo | A download arrow landing on two bars: a stream becoming a file on disk. [`docs/logo.svg`](docs/logo.svg) |
+| Navy `#101827` | Background |
+| Mint `#5EEAD4` | Actions, selected controls and download progress |
+| White `#F1F5F9` | Main text |
+| Slate `#94A3B8` | Secondary details (sizes, dates, folders) |
 
-The interface follows the system light or dark mode.
+The web interface uses a dark theme.
 
 Releases are built by GoReleaser from a GitHub Actions workflow on every
 `v*` tag.
