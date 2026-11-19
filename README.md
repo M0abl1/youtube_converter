@@ -1,4 +1,63 @@
-# ytd
+# ytd — YouTube video & playlist downloader
+
+> **About this repository.** This is my fork of [Sn0wye/ytd](https://github.com/Sn0wye/ytd)
+> (MIT), a fast YouTube downloader written in Go. I added **whole-playlist
+> downloads** and a **local web interface** on top of it, proposed upstream in
+> [Sn0wye/ytd#8](https://github.com/Sn0wye/ytd/pull/8). The original extractor,
+> downloader and muxers are Sn0wye's work; the git history keeps each commit
+> under its real author.
+
+![ytd's web interface listing a 100-video playlist](docs/gui-playlist.png)
+
+## My contributions
+
+**Playlist downloads** (`ytd down <playlist-url>`)
+
+- Lists videos through YouTube's InnerTube `browse` API, follows continuation
+  pages (tested on a 365-video playlist) and parses both the current
+  `lockupViewModel` layout and the legacy `playlistVideoRenderer` one.
+- `--items 1-10,15` to pick positions; private/deleted videos are skipped and
+  counted; mixes (`RD…`) are rejected with a clear message.
+- Resumable: files already on disk are skipped, so re-running continues an
+  interrupted playlist. Expired stream URLs (HTTP 403) are refreshed and
+  retried once. A final summary reports saved/skipped/failed videos.
+- Extracted the per-video logic into a new `pkg/downloader` package shared by
+  the CLI and the GUI.
+
+**Local web interface** (`ytd gui`)
+
+- Static HTML/CSS/JS embedded in the binary with Go's `embed`: no new
+  dependencies, still a single static binary (`CGO_ENABLED=0`).
+- Download queue with live progress over Server-Sent Events, per-job cancel
+  and "show in folder".
+- Security: listens on `127.0.0.1` only, a random per-session token on every
+  request, `Host`/`Origin` checks, strict CSP and JSON-only bodies, so other
+  websites cannot drive it.
+- Shuts itself down ~30 s after the last tab closes; double-clicking
+  `ytd.exe` on Windows opens it.
+
+**Tests**: unit tests for playlist parsing (trimmed real API responses as
+fixtures), the downloader, `--items` parsing, ffmpeg discovery and the GUI
+server (auth, queue, cancel, shutdown).
+
+**Stack**: Go · Cobra · net/http · SSE · vanilla JS · YouTube InnerTube API
+
+### Build and run this fork
+
+```sh
+git clone https://github.com/M0abl1/youtube_converter
+cd youtube_converter
+go build -o ytd .        # ytd.exe on Windows
+./ytd gui                # web interface
+./ytd down 'https://www.youtube.com/playlist?list=PL...' --format mp3
+go test ./...
+```
+
+The install options below come from the original project and install
+upstream releases, which do not include playlists or the GUI until
+[#8](https://github.com/Sn0wye/ytd/pull/8) is merged.
+
+---
 
 Download YouTube videos and playlists from the terminal or from a simple
 graphical interface. You choose the video quality and the audio quality from a
