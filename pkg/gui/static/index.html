@@ -13,18 +13,24 @@
       <span class="badge">ytconv</span>
       <span id="version" class="dim"></span>
     </div>
-    <button id="quit" class="ghost" type="button" title="Stop ytconv">Quit</button>
+    <div class="top-actions">
+      <div id="lang" class="lang" role="radiogroup" aria-label="Language / Idioma">
+        <button type="button" role="radio" data-lang="pt" aria-checked="false" title="Português">PT</button>
+        <button type="button" role="radio" data-lang="en" aria-checked="false" title="English">EN</button>
+      </div>
+      <button id="quit" class="ghost" type="button" data-i18n="quit" data-i18n-title="quitTitle">Quit</button>
+    </div>
   </header>
 
-  <div id="offline" class="banner" hidden>ytconv is not running anymore. Start it again to keep downloading.</div>
+  <div id="offline" class="banner" hidden data-i18n="offline">ytconv is not running anymore. Start it again to keep downloading.</div>
 
   <main>
     <section class="card">
       <form id="fetch-form" class="fetch" autocomplete="off">
-        <label for="url" class="sr-only">YouTube link</label>
+        <label for="url" class="sr-only" data-i18n="linkLabel">YouTube link</label>
         <input id="url" name="url" type="text" spellcheck="false"
-               placeholder="Paste a YouTube video or playlist link" required>
-        <button id="fetch" class="primary" type="submit">Fetch</button>
+               placeholder="Paste a YouTube video or playlist link" data-i18n-ph="linkPlaceholder" required>
+        <button id="fetch" class="primary" type="submit" data-i18n="fetch">Fetch</button>
       </form>
       <p id="fetch-error" class="error" role="alert" hidden></p>
     </section>
@@ -35,7 +41,7 @@
         <div>
           <h1 id="video-title"></h1>
           <p id="video-meta" class="dim"></p>
-          <button id="use-list" class="link" type="button" hidden>This video is part of a playlist — download the whole playlist instead</button>
+          <button id="use-list" class="link" type="button" hidden data-i18n="useList">This video is part of a playlist — download the whole playlist instead</button>
         </div>
       </div>
 
@@ -46,8 +52,8 @@
             <p id="list-meta" class="dim"></p>
           </div>
           <div class="list-actions">
-            <button id="select-all" class="ghost" type="button">All</button>
-            <button id="select-none" class="ghost" type="button">None</button>
+            <button id="select-all" class="ghost" type="button" data-i18n="all">All</button>
+            <button id="select-none" class="ghost" type="button" data-i18n="none">None</button>
           </div>
         </div>
         <ol id="entries" class="entries"></ol>
@@ -55,38 +61,57 @@
 
       <div class="options">
         <div class="field">
-          <span class="label" id="format-label">Format</span>
+          <span class="label" id="format-label" data-i18n="format">Format</span>
           <div id="formats" class="segmented" role="radiogroup" aria-labelledby="format-label"></div>
         </div>
 
         <label id="h264-row" class="check">
           <input id="h264" type="checkbox">
-          <span>Re-encode video to H.264 so it plays everywhere <span class="dim">(slower, needs ffmpeg)</span></span>
+          <span><span data-i18n="h264">Re-encode video to H.264 so it plays everywhere</span> <span class="dim" data-i18n="h264Note">(slower, needs ffmpeg)</span></span>
         </label>
 
+        <!-- Single video: pick the exact streams. -->
         <div id="quality" class="row">
           <label id="video-q-field" class="field">
-            <span class="label">Video quality</span>
+            <span class="label" data-i18n="videoQuality">Video quality</span>
             <select id="video-q"></select>
           </label>
-          <label class="field">
-            <span class="label">Audio quality</span>
+          <label id="audio-q-field" class="field">
+            <span class="label" data-i18n="audioQuality">Audio quality</span>
             <select id="audio-q"></select>
           </label>
         </div>
 
+        <!-- Playlist: one preset for every video. -->
+        <div id="presets" class="row">
+          <label id="max-res-field" class="field">
+            <span class="label" data-i18n="maxRes">Maximum resolution</span>
+            <select id="max-res"></select>
+          </label>
+          <label id="audio-level-field" class="field">
+            <span class="label" data-i18n="audioQuality">Audio quality</span>
+            <select id="audio-level"></select>
+          </label>
+        </div>
+
+        <label id="mp3-field" class="field">
+          <span class="label" data-i18n="mp3Bitrate">MP3 bitrate</span>
+          <select id="mp3-bitrate"></select>
+        </label>
+        <p id="quality-hint" class="hint dim"></p>
+
         <label class="field">
-          <span class="label">Save to</span>
+          <span class="label" data-i18n="saveTo">Save to</span>
           <input id="outdir" type="text" spellcheck="false">
         </label>
         <label id="subfolder-row" class="check" hidden>
           <input id="subfolder" type="checkbox" checked>
-          <span>Put the playlist in its own folder</span>
+          <span data-i18n="subfolder">Put the playlist in its own folder</span>
         </label>
 
         <p id="ffmpeg-warn" class="warn" hidden></p>
         <div class="actions">
-          <button id="download" class="primary" type="button">Download</button>
+          <button id="download" class="primary" type="button" data-i18n="download">Download</button>
           <span id="dl-summary" class="dim"></span>
         </div>
         <p id="dl-error" class="error" role="alert" hidden></p>
@@ -95,17 +120,18 @@
 
     <section class="queue-section">
       <div class="queue-head">
-        <h2>Downloads <span id="queue-count" class="dim"></span></h2>
+        <h2><span data-i18n="downloads">Downloads</span> <span id="queue-count" class="dim"></span></h2>
         <div class="queue-actions">
-          <button id="cancel-all" class="ghost" type="button" hidden>Cancel all</button>
-          <button id="clear" class="ghost" type="button" hidden>Clear finished</button>
+          <button id="cancel-all" class="ghost" type="button" hidden data-i18n="cancelAll">Cancel all</button>
+          <button id="clear" class="ghost" type="button" hidden data-i18n="clearFinished">Clear finished</button>
         </div>
       </div>
       <ol id="queue" class="queue"></ol>
-      <p id="queue-empty" class="empty dim">Nothing here yet. Fetch a link above to start.</p>
+      <p id="queue-empty" class="empty dim" data-i18n="queueEmpty">Nothing here yet. Fetch a link above to start.</p>
     </section>
   </main>
 
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

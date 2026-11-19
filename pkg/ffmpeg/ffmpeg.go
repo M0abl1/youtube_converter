@@ -45,6 +45,7 @@ type Job struct {
 	VideoBitrate float64 // kbit/s of the source, used when re-encoding to H.264
 	AudioPath    string
 	AudioCodec   string
+	AudioKbps    int // target bitrate when mp3 audio is encoded; 0 = best VBR
 	Container    string
 	ForceH264    bool // re-encode non-H.264 video for maximum player compatibility
 	Title        string
@@ -169,6 +170,9 @@ func audioArgs(j Job) []string {
 	case "webm", "opus":
 		return []string{"-c:a", "libopus", "-b:a", "160k"}
 	case "mp3":
+		if j.AudioKbps > 0 {
+			return []string{"-c:a", "libmp3lame", "-b:a", strconv.Itoa(j.AudioKbps) + "k"}
+		}
 		return []string{"-c:a", "libmp3lame", "-q:a", "0"}
 	default:
 		return []string{"-c:a", "aac", "-b:a", "192k"}

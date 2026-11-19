@@ -247,6 +247,9 @@ func TestDownloadValidation(t *testing.T) {
 		{"items": one, "format": "mp4", "outputDir": "relative/dir"},
 		{"items": two, "format": "mp4", "videoItag": 137, "outputDir": s.cfg.OutputDir},
 		{"items": []map[string]string{{"id": "../../etc", "title": "x"}}, "format": "mp4", "outputDir": s.cfg.OutputDir},
+		{"items": one, "format": "mp4", "maxHeight": -1, "outputDir": s.cfg.OutputDir},
+		{"items": one, "format": "m4a", "audioQuality": "ultra", "outputDir": s.cfg.OutputDir},
+		{"items": one, "format": "mp3", "mp3Bitrate": 100, "outputDir": s.cfg.OutputDir},
 	}
 	for _, c := range cases {
 		if code, res := call(t, s, base, "/api/download", c); code != 400 {
@@ -352,5 +355,36 @@ func TestSlowSubscriberResets(t *testing.T) {
 	msg := string(<-ch)
 	if !strings.Contains(msg, "event: reset") || !strings.Contains(msg, `"status":"saved"`) || !strings.Contains(msg, `"id":"2"`) {
 		t.Fatal(msg)
+	}
+}
+
+func TestDownloadQualityPresets(t *testing.T) {
+	s, base := testServer(t)
+	got := make(chan Job, 4)
+	s.fetch = func(_ context.Context, j *Job, _ downloader.Reporter) (string, error) {
+		got <- *j
+		return "", errors.New("stop")
+	}
+	two := []map[string]string{{"id": "aqz-KE-bpKQ", "title": "One"}, {"id": "LYsaKn8FRhc", "title": "Two"}}
+	code, res := call(t, s, base, "/api/download", map[string]any{
+		"items": two, "format": "mp4", "maxHeight": 720, "audioQuality": "low", "outputDir": s.cfg.OutputDir,
+	})
+	if code != 200 {
+		t.Fatalf("download: %d %v", code, res)
+	}
+	j := <-got
+	if j.sel.MaxHeight != 720 || j.sel.Audio != "low" || j.opts.AudioBitrate != 0 {
+		t.Errorf("mp4 presets: %+v %+v", j.sel, j.opts)
+	}
+	<-got
+
+	code, res = call(t, s, base, "/api/download", map[string]any{
+		"items": two[:1], "format": "mp3", "mp3Bitrate": 192, "outputDir": s.cfg.OutputDir,
+	})
+	if code != 200 {
+		t.Fatalf("mp3 download: %d %v", code, res)
+	}
+	if j := <-got; j.opts.AudioBitrate != 192 {
+		t.Errorf("mp3 bitrate: %+v", j.opts)
 	}
 }

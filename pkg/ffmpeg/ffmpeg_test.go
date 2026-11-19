@@ -16,6 +16,7 @@ func TestArgs(t *testing.T) {
 		want []string // must appear in order-insensitive form
 	}{
 		{Job{AudioPath: "a", AudioCodec: "aac", Container: "mp3", Output: "o.mp3"}, []string{"-c:a libmp3lame", "-vn", "-f mp3"}},
+		{Job{AudioPath: "a", AudioCodec: "opus", AudioKbps: 192, Container: "mp3", Output: "o.mp3"}, []string{"-c:a libmp3lame -b:a 192k", "-f mp3"}},
 		{Job{VideoPath: "v", VideoCodec: "vp9", AudioPath: "a", AudioCodec: "aac", Container: "mp4", ForceH264: true, Output: "o.mp4"},
 			[]string{"-c:v libx264", "-c:a copy", "-movflags +faststart"}},
 		{Job{VideoPath: "v", VideoCodec: "av1", AudioPath: "a", AudioCodec: "opus", Container: "mp4", ForceH264: true, Output: "o.mp4"},

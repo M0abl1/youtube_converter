@@ -32,6 +32,9 @@ var (
 	playlist      bool
 	noPlaylistDir bool
 	items         string
+	maxRes        int
+	audioQuality  string
+	mp3Bitrate    int
 	out           = ui.New()
 )
 
@@ -95,6 +98,9 @@ func init() {
 	f.BoolVar(&playlist, "playlist", false, "download the whole playlist of a watch URL that has list=")
 	f.BoolVar(&noPlaylistDir, "no-playlist-dir", false, "save playlist videos directly in --output-dir instead of a sub-folder")
 	f.StringVar(&items, "items", "", "playlist positions to download, e.g. 1-10,15 (default: all)")
+	f.IntVar(&maxRes, "max-res", 0, "skip the video prompt and pick the best stream up to this height, e.g. 1080, 720, 480")
+	f.StringVar(&audioQuality, "audio-quality", "", "skip the audio prompt and pick the best, medium or low bitrate stream")
+	f.IntVar(&mp3Bitrate, "mp3-bitrate", 0, "mp3 bitrate in kbps: 320, 256, 192 or 128 (default: best VBR)")
 	rootCmd.AddCommand(downCmd)
 }
 
@@ -108,6 +114,9 @@ func download(url string) error {
 	}
 	container, err := downloader.ResolveContainer(format, fileName, audioOnly, forceH264)
 	if err != nil {
+		return err
+	}
+	if err := checkQualityFlags(container); err != nil {
 		return err
 	}
 	audioOnly = slices.Contains(downloader.AudioContainers, container)
@@ -150,6 +159,27 @@ func download(url string) error {
 		return err
 	}
 	var vf *youtube.Format
+	if maxRes != 0 || audioQuality != "" {
+		// Presets choose both streams without prompts.
+		v, a, err := downloader.Select(video, opts, presetSelection())
+		if err != nil {
+			return err
+		}
+		if v != nil {
+			out.Picked("Video quality", videoRow(*v))
+		}
+		out.Picked("Audio quality", audioRow(a))
+		output, err := downloader.Run(ctx, client, video, v, a, opts, &trailReporter{container: container})
+		if err != nil {
+			return err
+		}
+		var size int64
+		if st, err := os.Stat(output); err == nil {
+			size = st.Size()
+		}
+		out.Saved(output, size, time.Since(start))
+		return nil
+	}
 	if !audioOnly {
 		v, err := chooseVideo(video, opts, wantVideo)
 		if err != nil {
@@ -176,13 +206,42 @@ func download(url string) error {
 }
 
 func options(container, dir string) downloader.Options {
-	return downloader.Options{
+	o := downloader.Options{
 		Container: container,
 		ForceH264: forceH264,
 		OutputDir: dir,
 		TmpDir:    tmpDir,
 		FileName:  fileName,
 	}
+	if container == "mp3" {
+		o.AudioBitrate = mp3Bitrate
+	}
+	return o
+}
+
+// checkQualityFlags validates --max-res, --audio-quality and --mp3-bitrate.
+func checkQualityFlags(container string) error {
+	if maxRes < 0 || maxRes > 4320 {
+		return fmt.Errorf("invalid --max-res %d (use a height like 2160, 1080, 720 or 480)", maxRes)
+	}
+	if !downloader.ValidAudioLevel(audioQuality) {
+		return fmt.Errorf("invalid --audio-quality %q (use best, medium or low)", audioQuality)
+	}
+	if !slices.Contains(downloader.MP3Bitrates, mp3Bitrate) {
+		return fmt.Errorf("invalid --mp3-bitrate %d (use 320, 256, 192 or 128)", mp3Bitrate)
+	}
+	if mp3Bitrate != 0 && container != "mp3" {
+		return errors.New("--mp3-bitrate only applies to --format mp3")
+	}
+	if itags != "" && (maxRes != 0 || audioQuality != "") {
+		return errors.New("--itag cannot be combined with --max-res or --audio-quality")
+	}
+	return nil
+}
+
+// presetSelection is the stream choice given by --max-res and --audio-quality.
+func presetSelection() downloader.Selection {
+	return downloader.Selection{MaxHeight: maxRes, Audio: audioQuality}
 }
 
 // trailReporter shows each stage of a single download as its own step.

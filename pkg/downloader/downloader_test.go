@@ -135,3 +135,53 @@ func TestOutputPathInvalidParent(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestSelectPresets(t *testing.T) {
+	v := &youtube.Video{ID: "aqz-KE-bpKQ", Formats: []youtube.Format{
+		{Itag: 401, Video: true, Codec: "av1", Ext: "mp4", Width: 3840, Height: 2160, Bitrate: 18_000_000},
+		{Itag: 137, Video: true, Codec: "h264", Ext: "mp4", Width: 1920, Height: 1080, Bitrate: 4_000_000},
+		{Itag: 136, Video: true, Codec: "h264", Ext: "mp4", Width: 1280, Height: 720, Bitrate: 2_000_000},
+		{Itag: 135, Video: true, Codec: "h264", Ext: "mp4", Width: 854, Height: 480, Bitrate: 1_000_000},
+		{Itag: 251, Codec: "opus", Ext: "webm", Bitrate: 160_000, DefaultLng: true},
+		{Itag: 250, Codec: "opus", Ext: "webm", Bitrate: 70_000, DefaultLng: true},
+		{Itag: 249, Codec: "opus", Ext: "webm", Bitrate: 50_000, DefaultLng: true},
+		{Itag: 140, Codec: "aac", Ext: "m4a", Bitrate: 128_000, DefaultLng: true},
+		{Itag: 139, Codec: "aac", Ext: "m4a", Bitrate: 48_000, DefaultLng: true},
+	}}
+	cases := []struct {
+		container  string
+		sel        Selection
+		video, aud int
+	}{
+		{"mp4", Selection{}, 401, 140},
+		{"mp4", Selection{MaxHeight: 1080}, 137, 140},
+		{"mp4", Selection{MaxHeight: 720, Audio: AudioLow}, 136, 139},
+		{"mp4", Selection{MaxHeight: 900}, 136, 140},
+		{"mp4", Selection{MaxHeight: 144}, 135, 140}, // nothing that small: smallest
+		{"opus", Selection{Audio: AudioMedium}, 0, 250},
+		{"opus", Selection{Audio: AudioLow}, 0, 249},
+		{"m4a", Selection{Audio: AudioMedium}, 0, 140},
+		{"mp3", Selection{Audio: AudioLow}, 0, 251}, // mp3 re-encodes the best source
+		{"mp4", Selection{MaxHeight: 480, VideoItag: 137}, 137, 140},
+	}
+	for _, c := range cases {
+		vf, af, err := Select(v, Options{Container: c.container}, c.sel)
+		gotV := 0
+		if vf != nil {
+			gotV = vf.Itag
+		}
+		if err != nil || gotV != c.video || af.Itag != c.aud {
+			t.Errorf("%s %+v = %d+%d, %v; want %d+%d", c.container, c.sel, gotV, af.Itag, err, c.video, c.aud)
+		}
+	}
+
+	// Vertical videos are capped by their short side.
+	short := &youtube.Video{Formats: []youtube.Format{
+		{Itag: 1, Video: true, Codec: "h264", Ext: "mp4", Width: 1080, Height: 1920},
+		{Itag: 2, Video: true, Codec: "h264", Ext: "mp4", Width: 720, Height: 1280},
+		{Itag: 140, Codec: "aac", Ext: "m4a", Bitrate: 128_000},
+	}}
+	if vf, _, err := Select(short, Options{Container: "mp4"}, Selection{MaxHeight: 1080}); err != nil || vf.Itag != 1 {
+		t.Errorf("vertical 1080 cap: %v %v", vf, err)
+	}
+}

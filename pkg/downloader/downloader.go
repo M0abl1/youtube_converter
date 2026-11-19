@@ -38,6 +38,24 @@ type Options struct {
 	OutputDir string
 	TmpDir    string
 	FileName  string // optional; default is the slugified title
+	// AudioBitrate is the target bitrate in kbps when the audio is
+	// re-encoded (mp3). 0 keeps ffmpeg's best VBR setting.
+	AudioBitrate int
+}
+
+// MP3Bitrates are the accepted values for Options.AudioBitrate (0 = best VBR).
+var MP3Bitrates = []int{0, 320, 256, 192, 128}
+
+// Audio quality levels for Selection.Audio.
+const (
+	AudioBest   = "best"
+	AudioMedium = "medium"
+	AudioLow    = "low"
+)
+
+// ValidAudioLevel reports whether s is "" or one of the Audio* levels.
+func ValidAudioLevel(s string) bool {
+	return s == "" || s == AudioBest || s == AudioMedium || s == AudioLow
 }
 
 // AudioOnly reports whether the output has no video.
@@ -143,8 +161,52 @@ func PickItag(all, usable []youtube.Format, itag int, container string) (youtube
 }
 
 // Selection asks for specific streams; 0 means the best usable one.
+// MaxHeight and Audio apply only when no itag is given, so one Selection can
+// describe the quality of every video in a playlist.
 type Selection struct {
 	VideoItag, AudioItag int
+	MaxHeight            int    // e.g. 1080: best stream up to 1080p; 0 = no limit
+	Audio                string // AudioBest (default), AudioMedium or AudioLow
+}
+
+// shortSide is the height of a landscape stream and the width of a vertical
+// one, so a 1080x1920 short counts as 1080p.
+func shortSide(f youtube.Format) int {
+	if f.Width > 0 && f.Width < f.Height {
+		return f.Width
+	}
+	return f.Height
+}
+
+// capHeight returns the best stream not taller than max, or the smallest
+// stream when all of them are taller. list is sorted best first.
+func capHeight(list []youtube.Format, max int) youtube.Format {
+	for _, f := range list {
+		if shortSide(f) <= max {
+			return f
+		}
+	}
+	return list[len(list)-1]
+}
+
+// audioLevel picks from the streams of the preferred language (the first
+// one's): the best, the middle or the smallest by bitrate.
+func audioLevel(list []youtube.Format, level string) youtube.Format {
+	lang := list[0].Language
+	var same []youtube.Format
+	for _, f := range list {
+		if f.Language == lang {
+			same = append(same, f)
+		}
+	}
+	slices.SortStableFunc(same, func(a, b youtube.Format) int { return b.Bitrate - a.Bitrate })
+	switch level {
+	case AudioLow:
+		return same[len(same)-1]
+	case AudioMedium:
+		return same[(len(same)-1)/2]
+	}
+	return same[0]
 }
 
 // Select picks streams without prompting: the requested itags, or the best
@@ -158,6 +220,8 @@ func Select(v *youtube.Video, o Options, s Selection) (vf *youtube.Format, af yo
 			f, err = PickItag(all, usable, s.VideoItag, o.Container)
 		case len(usable) == 0:
 			err = fmt.Errorf("no video streams can be saved as %s; try --format mkv", o.Container)
+		case s.MaxHeight > 0:
+			f = capHeight(usable, s.MaxHeight)
 		default:
 			f = usable[0]
 		}
@@ -172,8 +236,10 @@ func Select(v *youtube.Video, o Options, s Selection) (vf *youtube.Format, af yo
 		af, err = PickItag(all, usable, s.AudioItag, o.Container)
 	case len(usable) == 0:
 		err = fmt.Errorf("no audio streams can be saved as %s", o.Container)
+	case o.Container == "mp3":
+		af = usable[0] // re-encoded anyway: AudioBitrate sets the size
 	default:
-		af = usable[0]
+		af = audioLevel(usable, s.Audio)
 	}
 	return vf, af, err
 }
@@ -254,6 +320,7 @@ func Run(ctx context.Context, c *youtube.Client, v *youtube.Video, vf *youtube.F
 			AudioCodec: af.Codec,
 			Container:  o.Container,
 			ForceH264:  o.ForceH264,
+			AudioKbps:  o.AudioBitrate,
 			Title:      meta.Title,
 			Artist:     meta.Artist,
 			Output:     output,

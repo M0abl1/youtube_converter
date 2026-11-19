@@ -4,7 +4,7 @@
 from a local web interface.** A single Go binary: no login, no API key, no
 Python, no extra programs.
 
-![ytconv's web interface listing a 100-video playlist](docs/gui-playlist.png)
+![ytconv's web interface in Portuguese, listing a 100-video playlist with quality presets](docs/gui-playlist.png)
 
 ## Features
 
@@ -13,8 +13,12 @@ Python, no extra programs.
 - **Whole playlists**: every video of a playlist in one command, with
   position ranges (`--items 1-10,15`), resume after an interruption and a
   final saved/skipped/failed report.
-- **Web interface** (`ytconv gui`): paste a link, pick the format and follow
-  the download queue with live progress, cancel and "show in folder".
+- **Web interface** (`ytconv gui`) in **English and Portuguese**: paste a
+  link, pick the format and quality and follow the download queue with live
+  progress, cancel and "show in folder".
+- **Quality options**: exact video/audio streams for a single video;
+  maximum resolution (4K down to 144p), audio quality (best, medium,
+  smallest) and MP3 bitrate (VBR, 320, 256, 192, 128 kbps) for playlists.
 - **Lossless and fast**: streams are copied as YouTube serves them, downloaded
   over parallel connections and muxed in pure Go. ffmpeg is only needed for
   mp3 and `--h264`.
@@ -51,6 +55,7 @@ ytconv down <url> --format mkv                               # any codec combina
 ytconv down <url> --audio-only                               # m4a (AAC)
 ytconv down <url> --format opus                              # Opus audio
 ytconv down <url> --format mp3                               # needs ffmpeg
+ytconv down <url> --max-res 720 --audio-quality medium      # no prompts, up to 720p
 ytconv down <url> --h264                                     # VP9/AV1 -> H.264, needs ffmpeg
 ytconv down 'https://www.youtube.com/playlist?list=PL...' --format mp3   # a whole playlist
 ytconv gui                                                   # graphical interface
@@ -82,6 +87,9 @@ alias ytconv='noglob ytconv'
 | `-t, --tmp-dir` | system temp | where streams are stored before muxing |
 | `--playlist` | | with a `watch?v=…&list=…` URL, download the whole playlist instead of the one video |
 | `--items` | all | playlist positions to download, e.g. `1-10,15` or `20-` |
+| `--max-res` | best | skip the video prompt and use the best stream up to this height, e.g. `1080`, `720`, `480` |
+| `--audio-quality` | best | skip the audio prompt and use the `best`, `medium` or `low` bitrate stream |
+| `--mp3-bitrate` | best VBR | with `--format mp3`: `320`, `256`, `192` or `128` kbps |
 | `--no-playlist-dir` | | save playlist videos directly in `--output-dir` instead of a sub-folder |
 
 The selectors only list streams that fit the chosen format without
@@ -102,12 +110,16 @@ Output files get title and artist metadata and never overwrite an existing file.
 ### Playlists
 
 ```sh
-ytconv down 'https://www.youtube.com/playlist?list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --format mp3
+ytconv down 'https://www.youtube.com/playlist?list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --format mp3 --mp3-bitrate 192
+ytconv down 'https://www.youtube.com/playlist?list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --max-res 720
 ytconv down 'https://www.youtube.com/watch?v=LYsaKn8FRhc&list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --playlist --items 1-10
 ```
 
-- Every video gets the best quality that fits the format, without prompts
+- Every video gets the best quality that fits the format, without prompts,
+  or the quality set by `--max-res`, `--audio-quality` and `--mp3-bitrate`
   (`--itag` and `--filename` cannot be used, since they are per video).
+  A video that only exists in a higher resolution than `--max-res` uses its
+  smallest one.
 - Files go into a folder named after the playlist inside `--output-dir`.
 - Videos already saved in that folder are skipped, so running the same
   command again resumes an interrupted playlist.
@@ -127,10 +139,19 @@ ytconv gui --port 8765 --no-open
 ```
 
 `ytconv gui` starts a small web page served by ytconv itself and opens it in your
-default browser. Paste a video or playlist link, pick the format (and, for a
-single video, the video and audio quality), choose the folder and follow the
-downloads in the queue, with cancel and "show in folder" buttons. On Windows,
-double-clicking `ytconv.exe` does the same.
+default browser. Paste a video or playlist link, pick the format and the
+quality, choose the folder and follow the downloads in the queue, with cancel
+and "show in folder" buttons. On Windows, double-clicking `ytconv.exe` does
+the same.
+
+- **Language**: English or Portuguese (PT/EN switch in the corner). The
+  first visit follows the browser language; the choice is remembered.
+- **Single video**: pick the exact video and audio stream (resolution,
+  codec, bitrate and size are listed), or leave "Best available".
+- **Playlist**: pick a maximum resolution (4K, 1440p, 1080p, 720p, 480p,
+  360p, 240p, 144p) and an audio quality (best, medium, smallest file) that
+  apply to every selected video.
+- **MP3**: pick the bitrate (best VBR, 320, 256, 192 or 128 kbps).
 
 It needs no extra program or library: the page is built into the ytconv binary.
 ytconv stops when you press Ctrl+C, click Quit, or about 30 seconds after the

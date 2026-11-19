@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -24,12 +25,35 @@ var errSomeFailed = errors.New("some playlist videos failed")
 
 const maxLabel = 60
 
+// qualityLabel describes the quality presets for the playlist summary line.
+func qualityLabel(container string) string {
+	var parts []string
+	if !slices.Contains(downloader.AudioContainers, container) {
+		if maxRes > 0 {
+			parts = append(parts, fmt.Sprintf("up to %dp", maxRes))
+		} else {
+			parts = append(parts, "best video")
+		}
+	}
+	switch {
+	case container == "mp3" && mp3Bitrate > 0:
+		parts = append(parts, fmt.Sprintf("%d kbps", mp3Bitrate))
+	case container == "mp3":
+		parts = append(parts, "best VBR")
+	case audioQuality == "" || audioQuality == downloader.AudioBest:
+		parts = append(parts, "best audio")
+	default:
+		parts = append(parts, audioQuality+" audio")
+	}
+	return strings.Join(parts, ", ")
+}
+
 func downloadPlaylist(listID, container string) error {
 	if fileName != "" {
 		return errors.New("--filename cannot be used with a playlist (each video is named after its title)")
 	}
 	if itags != "" {
-		return errors.New("--itag cannot be used with a playlist (itags differ per video); the best quality for the format is used")
+		return errors.New("--itag cannot be used with a playlist (itags differ per video); use --max-res and --audio-quality instead")
 	}
 	start := time.Now()
 	opts := options(container, outputDir)
@@ -67,7 +91,7 @@ func downloadPlaylist(listID, container string) error {
 	if !noPlaylistDir {
 		opts.OutputDir = filepath.Join(outputDir, downloader.Name("", p.Title, p.ID))
 	}
-	out.Picked("Saving as "+container, "best quality · "+ui.ShortPath(opts.OutputDir))
+	out.Picked("Saving as "+container, qualityLabel(container)+" · "+ui.ShortPath(opts.OutputDir))
 
 	var saved, skipped int
 	var failed []string
@@ -82,7 +106,7 @@ func downloadPlaylist(listID, container string) error {
 
 		began := time.Now()
 		r := &entryReporter{label: label}
-		path, _, err := downloader.Fetch(ctx, client, e.ID, opts, downloader.Selection{}, r, nil)
+		path, _, err := downloader.Fetch(ctx, client, e.ID, opts, presetSelection(), r, nil)
 		if ctx.Err() != nil {
 			r.fail(ctx.Err())
 			return ui.ErrAborted

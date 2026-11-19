@@ -293,6 +293,7 @@ func (s *Server) handleState(_ *http.Request) (any, error) {
 		"ffmpegHint":      ffmpeg.InstallHint(runtime.GOOS),
 		"videoContainers": downloader.VideoContainers,
 		"audioContainers": downloader.AudioContainers,
+		"mp3Bitrates":     downloader.MP3Bitrates,
 		"jobs":            jobs,
 	}, nil
 }
@@ -395,6 +396,10 @@ type downloadRequest struct {
 	H264      bool   `json:"h264"`
 	VideoItag int    `json:"videoItag"`
 	AudioItag int    `json:"audioItag"`
+	// Quality presets, used for every video when no itag is given.
+	MaxHeight    int    `json:"maxHeight"`    // 0 = best available
+	AudioQuality string `json:"audioQuality"` // best, medium, low
+	MP3Bitrate   int    `json:"mp3Bitrate"`   // kbps; 0 = best VBR
 	OutputDir string `json:"outputDir"`
 	Folder    string `json:"folder"` // playlist title: save into a sub-folder
 }
@@ -417,6 +422,15 @@ func (s *Server) handleDownload(r *http.Request) (any, error) {
 	if len(in.Items) > 1 && (in.VideoItag != 0 || in.AudioItag != 0) {
 		return nil, badRequest("a quality can only be picked for a single video")
 	}
+	if in.MaxHeight < 0 || in.MaxHeight > 4320 {
+		return nil, badRequest("invalid maximum resolution %d", in.MaxHeight)
+	}
+	if !downloader.ValidAudioLevel(in.AudioQuality) {
+		return nil, badRequest("invalid audio quality %q", in.AudioQuality)
+	}
+	if !slices.Contains(downloader.MP3Bitrates, in.MP3Bitrate) {
+		return nil, badRequest("invalid mp3 bitrate %d", in.MP3Bitrate)
+	}
 
 	dir := strings.TrimSpace(in.OutputDir)
 	if strings.HasPrefix(dir, "~") {
@@ -436,7 +450,10 @@ func (s *Server) handleDownload(r *http.Request) (any, error) {
 	}
 
 	opts := downloader.Options{Container: container, ForceH264: in.H264, OutputDir: dir, TmpDir: s.cfg.TmpDir}
-	sel := downloader.Selection{VideoItag: in.VideoItag, AudioItag: in.AudioItag}
+	if container == "mp3" {
+		opts.AudioBitrate = in.MP3Bitrate
+	}
+	sel := downloader.Selection{VideoItag: in.VideoItag, AudioItag: in.AudioItag, MaxHeight: in.MaxHeight, Audio: in.AudioQuality}
 	if opts.AudioOnly() {
 		sel.VideoItag = 0
 	}
