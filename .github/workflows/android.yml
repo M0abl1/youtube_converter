@@ -86,8 +86,12 @@ jobs:
         run: |
           gradle -p android --no-daemon assembleRelease -PytconvVersion="$VERSION"
           cp android/app/build/outputs/apk/release/app-release.apk ytconv-android.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs ytconv-android.apk
           sha256sum ytconv-android.apk > ytconv-android.apk.sha256
           ls -l ytconv-android.apk
+
+      - name: Lint the Android app
+        run: gradle -p android --no-daemon lintRelease -PytconvVersion="$VERSION"
 
       - uses: actions/upload-artifact@v4
         with:
