@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F1F5F9" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#101827">
   <title>ytconv</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -13,7 +14,7 @@
   <header class="top">
     <div class="top-inner">
       <a class="brand" href="#" id="home" aria-label="ytconv">
-        <img src="mark.svg" alt="" width="30" height="30">
+        <picture><source srcset="mark-navy.svg" media="(prefers-color-scheme: light)"><img src="mark.svg" alt="" width="30" height="30"></picture>
         <span class="wordmark">ytconv</span>
         <span id="version" class="version"></span>
       </a>
@@ -166,7 +167,7 @@
     <p id="history-error" class="error" role="alert" hidden></p>
     <div id="history-list" class="history-list"></div>
     <div id="history-empty" class="empty-state" hidden>
-      <img src="mark.svg" alt="" width="48" height="48">
+      <img src="logo.svg" alt="" width="48" height="48">
       <p data-i18n="historyEmpty">Nothing downloaded yet. Every file you save shows up here, with the folder it went to.</p>
       <button id="history-start" class="primary" type="button" data-i18n="historyStart">Download something</button>
     </div>

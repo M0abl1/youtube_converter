@@ -280,12 +280,14 @@ from `winres/icon.png` with
 | | |
 |---|---|
 | Logo | A download arrow landing on two bars: a stream becoming a file on disk. [`docs/logo.svg`](docs/logo.svg) |
-| Navy `#101827` | Background |
-| Mint `#5EEAD4` | Actions, selected controls and download progress |
-| White `#F1F5F9` | Main text |
-| Slate `#94A3B8` | Secondary details (sizes, dates, folders) |
+| Navy `#101827` | Background in dark mode, text in light mode |
+| Mint `#5EEAD4` | Buttons, selected controls and download progress |
+| White `#F1F5F9` | Text in dark mode, background in light mode |
+| Slate `#94A3B8` | Secondary details in dark mode (sizes, dates, folders) |
+| Deep teal `#0F766E` | Light mode only: mint used as text, outlines and progress, so it stays readable on white |
 
-The web interface uses a dark theme.
+The web interface follows the system light or dark appearance. Dark is the
+brand's default.
 
 Releases are built by GoReleaser from a GitHub Actions workflow on every
 `v*` tag.

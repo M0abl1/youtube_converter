@@ -1,7 +1,10 @@
 /* ytconv — visual identity
    Navy is the room, mint is the only colour that acts: buttons, the
    selected tab and the progress tape (the logo's arrow landing on its
-   bars). White carries the text, slate the details. */
+   bars). White carries the text, slate the details.
+   The page follows the system theme. Dark is the brand's home; in light
+   mode navy becomes the text and mint keeps its fills, while mint used as
+   text turns to a deep teal so it stays readable on white. */
 
 :root {
   --bg: #101827;
@@ -15,11 +18,15 @@
   --mint: #5EEAD4;
   --mint-strong: #99F6E4;
   --mint-soft: #5EEAD41F;
+  --mint-text: #5EEAD4;
+  --mint-edge: #5EEAD4;
+  --progress-fill: #5EEAD4;
+  --control-border: #64748B;
   --on-mint: #101827;
   --warn: #FBBF24;
   --brick: #F87171;
   --brick-soft: #F871711F;
-  --focus: #5EEAD466;
+  --focus: #5EEAD4;
   --shadow: 0 1px 2px #0000004D, 0 12px 28px -14px #00000099;
 
   --r-lg: 16px;
@@ -29,6 +36,33 @@
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "SF Pro Text", Roboto, "Helvetica Neue", sans-serif;
   --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "SF Pro Display", Roboto, sans-serif;
   color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #F1F5F9;
+    --surface: #FFFFFF;
+    --well: #F8FAFC;
+    --raise: #E8EEF5;
+    --line: #DCE3EC;
+    --text: #101827;
+    --text-2: #334155;
+    --text-3: #5B6B82;
+    --mint: #5EEAD4;
+    --mint-strong: #2DD4BF;
+    --mint-soft: #CCFBF1;
+    --mint-text: #0F766E;
+    --mint-edge: #0B6B63;
+    --progress-fill: #0F766E;
+    --control-border: #64748B;
+    --on-mint: #101827;
+    --warn: #B45309;
+    --brick: #B9380B;
+    --brick-soft: #FEE7DD;
+    --focus: #0F766E;
+    --shadow: 0 1px 2px #1018270F, 0 8px 24px -12px #10182729;
+    color-scheme: light;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -54,8 +88,7 @@ p { margin: 0; }
   position: sticky;
   top: 0;
   z-index: 5;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .top-inner {
@@ -98,7 +131,7 @@ p { margin: 0; }
   gap: 8px;
 }
 .tab:hover { color: var(--text); background: var(--raise); }
-.tab[aria-selected=true] { color: var(--mint); }
+.tab[aria-selected=true] { color: var(--mint-text); }
 .tab[aria-selected=true]::after {
   content: "";
   position: absolute;
@@ -107,7 +140,7 @@ p { margin: 0; }
   bottom: -13px;
   height: 3px;
   border-radius: 3px 3px 0 0;
-  background: var(--mint);
+  background: var(--mint-text);
 }
 .count {
   font-size: 12px;
@@ -116,7 +149,7 @@ p { margin: 0; }
   padding: 1px 7px;
   border-radius: 99px;
   background: var(--mint-soft);
-  color: var(--mint);
+  color: var(--mint-text);
   text-align: center;
 }
 
@@ -138,7 +171,7 @@ p { margin: 0; }
   padding: 3px 10px;
   border-radius: 99px;
 }
-.lang button[aria-checked=true] { background: var(--mint); color: var(--on-mint); box-shadow: inset 0 0 0 1px var(--line); }
+.lang button[aria-checked=true] { background: var(--mint); color: var(--on-mint); box-shadow: inset 0 0 0 1px var(--mint-edge); }
 
 .banner {
   max-width: 888px;
@@ -163,6 +196,7 @@ button.primary {
   border: 0;
   background: var(--mint);
   color: var(--on-mint);
+  box-shadow: inset 0 0 0 1px var(--mint-edge);
   font-weight: 700;
   padding: 10px 20px;
 }
@@ -180,7 +214,7 @@ button.link {
   background: none;
   padding: 0;
   margin-top: 8px;
-  color: var(--mint);
+  color: var(--mint-text);
   font-weight: 600;
   text-align: left;
   text-decoration: underline;
@@ -193,13 +227,13 @@ input[type=text], input[type=search], select {
   font: inherit;
   color: inherit;
   background: var(--well);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--r-sm);
   padding: 9px 12px;
 }
 input::placeholder { color: var(--text-3); }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-input:focus-visible, select:focus-visible { outline-offset: 0; border-color: var(--mint); }
+input:focus-visible, select:focus-visible { outline-offset: 0; border-color: var(--mint-text); }
 
 /* Layout ------------------------------------------------------------------ */
 
@@ -238,11 +272,11 @@ input:focus-visible, select:focus-visible { outline-offset: 0; border-color: var
   margin-top: 14px;
   padding: 6px;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: 14px;
   box-shadow: var(--shadow);
 }
-.fetch:focus-within { border-color: var(--mint); }
+.fetch:focus-within { border-color: var(--mint-text); outline: 3px solid var(--focus); outline-offset: 2px; }
 .fetch input {
   flex: 1;
   border: 0;
@@ -286,7 +320,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
   cursor: pointer;
 }
 .entries label:hover { background: var(--raise); }
-.entries input, .check input { accent-color: var(--mint); width: 16px; height: 16px; }
+.entries input, .check input { accent-color: var(--mint-text); width: 16px; height: 16px; }
 .entries .n, .entries .d { color: var(--text-3); font-size: 13px; }
 .entries .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -304,7 +338,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
 .formats .group-label + button { margin-left: 0; }
 .formats .gap { width: 14px; }
 .formats button {
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   background: var(--well);
   padding: 5px 13px;
   font-weight: 700;
@@ -313,7 +347,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
   border-radius: 99px;
 }
 .formats button:hover { border-color: var(--text-3); }
-.formats button[aria-checked=true] { background: var(--mint); border-color: var(--mint); color: var(--on-mint); }
+.formats button[aria-checked=true] { background: var(--mint); border-color: var(--mint-edge); color: var(--on-mint); }
 
 .actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .actions .dim { overflow-wrap: anywhere; font-size: 14px; }
@@ -338,10 +372,9 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
 .job-status { font-size: 13px; font-weight: 700; color: var(--text-3); flex: none; }
 .job[data-status=downloading] .job-status,
 .job[data-status=converting] .job-status,
-.job[data-status=saving] .job-status { color: var(--mint); }
+.job[data-status=saving] .job-status { color: var(--mint-text); }
 .job[data-status=saved] .job-status { color: var(--text); }
 .job[data-status=failed] .job-status { color: var(--brick); }
-.job[data-status=cancelled] { opacity: .6; }
 .job-sub { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--text-3); min-height: 26px; }
 .job-sub .detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .job-sub button { padding: 3px 10px; font-size: 13px; }
@@ -354,7 +387,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
   height: 100%;
   width: 0;
   border-radius: 99px;
-  background: var(--mint);
+  background: var(--progress-fill);
   transition: width .25s linear;
 }
 .job[data-status=downloading] .bar > i,
@@ -364,7 +397,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
   background-size: 34px 34px;
   animation: tape 1s linear infinite;
 }
-.job[data-status=saved] .bar > i { background: var(--mint); }
+.job[data-status=saved] .bar > i { background: var(--progress-fill); }
 .job[data-status=failed] .bar > i { background: var(--brick); }
 @keyframes tape { to { background-position: 34px 0; } }
 
@@ -393,6 +426,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
   list-style: none;
 }
 .group-head::-webkit-details-marker { display: none; }
+.group-head:focus-visible { outline-offset: -3px; border-radius: var(--r-lg); }
 .group-icon {
   width: 40px;
   height: 40px;
@@ -400,7 +434,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
   display: grid;
   place-items: center;
   background: var(--mint-soft);
-  color: var(--mint);
+  color: var(--mint-text);
 }
 .group-icon svg { width: 22px; height: 22px; }
 .group-text { min-width: 0; display: grid; gap: 2px; }
@@ -438,7 +472,7 @@ h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01e
   text-transform: uppercase;
 }
 .fmt.audio { background: var(--raise); border-color: transparent; color: var(--text-2); }
-.fmt.video { background: var(--mint-soft); border-color: transparent; color: var(--mint); }
+.fmt.video { background: var(--mint-soft); border-color: transparent; color: var(--mint-text); }
 .file-text { min-width: 0; display: grid; gap: 2px; }
 .file-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file .meta { font-size: 13px; }
