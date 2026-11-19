@@ -181,6 +181,26 @@ token that is part of the address ytconv opens, and requests with another
 `Host` or `Origin` are refused, so other websites cannot use it to download
 files to your computer.
 
+## Android
+
+Download [ytconv-android.apk](https://github.com/M0abl1/youtube_converter/releases/latest/download/ytconv-android.apk)
+from GitHub Releases, the only place the Android app is distributed. Open the
+APK and, if Android prompts you, allow your browser or file manager to install
+apps from this source. The app requires Android 8.0 or later.
+
+- Paste a link or choose **Share → ytconv** in the YouTube app. A shared
+  link opens ytconv and fetches the video details.
+- Files are saved in **Download/ytconv** on your device. Downloaded files
+  appear in the **History** tab.
+- MP3 conversion and H.264 re-encoding require ffmpeg, which the Android
+  app does not include. MP4 can still use an existing H.264 stream.
+- The app checks GitHub Releases for updates when it opens and offers
+  the APK when a newer Android build is available.
+
+The Android build uses `gomobile bind` to package the Go core as an AAR.
+The Kotlin app shows the same embedded interface in a WebView backed by
+the Go server on `127.0.0.1`. GitHub Actions builds and signs the APK.
+
 ## How it works
 
 1. **Extraction** (`pkg/youtube`), ported from yt-dlp's YouTube extractor.
@@ -266,6 +286,8 @@ YouTube ("Sign in to confirm you're not a bot") for both tools; space the runs o
 | `pkg/media/` | MP4 / WebM / Matroska / Ogg demuxers and writers |
 | `pkg/ffmpeg/` | ffmpeg discovery for mp3 and H.264 re-encoding |
 | `pkg/ui/` | Terminal output and interactive quality pickers |
+| `mobile/` | Go bindings and embedded GUI server for Android |
+| `android/` | Kotlin app, WebView, shared storage and Gradle build |
 
 ```sh
 go test ./...   # unit tests, including playlist parsing against real API fixtures
