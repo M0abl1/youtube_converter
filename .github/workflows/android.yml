@@ -90,15 +90,20 @@ jobs:
           sha256sum ytconv-android.apk > ytconv-android.apk.sha256
           ls -l ytconv-android.apk
 
-      - name: Lint the Android app
-        run: gradle -p android --no-daemon lintRelease -PytconvVersion="$VERSION"
-
       - uses: actions/upload-artifact@v4
         with:
           name: ytconv-android
           path: |
             ytconv-android.apk
             ytconv-android.apk.sha256
+
+      - name: Lint the Android app
+        run: |
+          if ! gradle -p android --no-daemon lintRelease -PytconvVersion="$VERSION"; then
+            report=android/app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt
+            if [ -f "$report" ]; then cat "$report"; fi
+            exit 1
+          fi
 
       - name: Attach to the GitHub release
         if: startsWith(github.ref, 'refs/tags/v')

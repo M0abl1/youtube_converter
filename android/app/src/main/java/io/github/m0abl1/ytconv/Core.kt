@@ -99,7 +99,7 @@ object Core : Host {
     override fun scopedStorage(): Boolean = Build.VERSION.SDK_INT >= 29
 
     override fun publish(stagedPath: String, dir: String, transfer: Transfer): String {
-        check(Build.VERSION.SDK_INT >= 29)
+        if (Build.VERSION.SDK_INT < 29) throw IllegalStateException("MediaStore downloads require Android 10")
         return SharedDownloads(app.contentResolver, downloads).publish(File(stagedPath), File(dir), transfer).path
     }
 
