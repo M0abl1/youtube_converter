@@ -255,7 +255,7 @@ function renderFormats() {
   state.audioContainers.forEach(add);
 
   const audio = isAudio(state.format);
-  show($("h264-row"), !audio && state.format !== "webm");
+  show($("h264-row"), !audio && state.format !== "webm" && !(state.app && !state.ffmpeg));
   if (audio || state.format === "webm") $("h264").checked = false;
   renderQualities();
   renderFFmpegWarning();
@@ -668,6 +668,8 @@ async function init() {
     state.historyOn = s.history !== false;
     state.ffmpeg = s.ffmpeg;
     state.ffmpegHint = s.ffmpegHint;
+    state.app = s.app === true;
+    if (state.app) enterAppMode();
     const fmt = recall("format");
     if (fmt && (s.videoContainers.includes(fmt) || s.audioContainers.includes(fmt))) state.format = fmt;
     $("outdir").value = recall("outdir") || s.outputDir;
@@ -678,7 +680,29 @@ async function init() {
   }
   connectEvents();
   loadHistory();
-  $("url").focus();
+  if (!takeSharedLink()) $("url").focus();
+}
+
+// Inside the Android app: the app owns the server, so there is no Quit, and
+// the texts talk about "this device".
+function enterAppMode() {
+  document.documentElement.classList.add("in-app");
+  show($("quit"), false);
+  document.querySelector(".intake-sub").dataset.i18n = "intakeSubApp";
+  document.querySelector(".history-note").dataset.i18n = "historyNoteApp";
+  applyStatic();
+}
+
+// A link shared to the app from YouTube arrives as ?share=; fetch it right away.
+function takeSharedLink() {
+  const params = new URLSearchParams(location.search);
+  const shared = params.get("share");
+  if (!shared) return false;
+  params.delete("share");
+  history.replaceState(null, "", location.pathname + "?" + params.toString());
+  $("url").value = shared;
+  fetchInfo(shared, false);
+  return true;
 }
 
 init();

@@ -1,0 +1,102 @@
+name: android
+
+# Builds the Android app (ytconv-android.apk). On a version tag, release.yml
+# calls this workflow after GoReleaser and the APK is attached to the GitHub
+# release, the only place the app is distributed.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "android/**"
+      - "mobile/**"
+      - "pkg/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Test the Go core
+        run: go test ./mobile/... ./pkg/gui/...
+
+      - name: Build the Go core into an .aar (gomobile)
+        run: |
+          ver=$(go list -m -f '{{.Version}}' golang.org/x/mobile)
+          go install golang.org/x/mobile/cmd/gomobile@"$ver" golang.org/x/mobile/cmd/gobind@"$ver"
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          gomobile init
+          gomobile bind \
+            -target=android/arm64,android/arm,android/amd64 \
+            -androidapi 26 \
+            -javapkg io.github.m0abl1 \
+            -ldflags "-s -w" \
+            -o android/app/libs/ytcore.aar \
+            ./mobile/ytcore
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=0.0.0-dev" >> "$GITHUB_ENV"
+          fi
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/ytconv.jks"
+            {
+              echo "YTCONV_KEYSTORE=$RUNNER_TEMP/ytconv.jks"
+              echo "YTCONV_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "YTCONV_KEY_ALIAS=ytconv"
+            } >> "$GITHUB_ENV"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "::error::A release APK must be signed with the release key (ANDROID_KEYSTORE_BASE64)."
+            exit 1
+          else
+            echo "No release key: the APK is signed with a debug key."
+          fi
+
+      - name: Build the APK
+        run: |
+          gradle -p android --no-daemon assembleRelease -PytconvVersion="$VERSION"
+          cp android/app/build/outputs/apk/release/app-release.apk ytconv-android.apk
+          sha256sum ytconv-android.apk > ytconv-android.apk.sha256
+          ls -l ytconv-android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ytconv-android
+          path: |
+            ytconv-android.apk
+            ytconv-android.apk.sha256
+
+      - name: Attach to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" ytconv-android.apk ytconv-android.apk.sha256 --clobber

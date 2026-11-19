@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,11 +23,20 @@ import (
 // the same port as the server.
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
+	return testServerWith(t, nil)
+}
+
+func testServerWith(t *testing.T, edit func(*Config)) (*Server, string) {
+	t.Helper()
 	h, err := history.Open(filepath.Join(t.TempDir(), "history.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(Config{Version: "test", OutputDir: t.TempDir(), TmpDir: t.TempDir(), History: h})
+	cfg := Config{Version: "test", OutputDir: t.TempDir(), TmpDir: t.TempDir(), History: h}
+	if edit != nil {
+		edit(&cfg)
+	}
+	s := New(cfg)
 	s.getVideo = func(_ context.Context, id string) (*youtube.Video, error) {
 		return &youtube.Video{ID: id, Title: "Big Buck Bunny", Author: "Blender", Duration: 634 * time.Second, Formats: []youtube.Format{
 			{Itag: 137, Video: true, Codec: "h264", Ext: "mp4", Width: 1920, Height: 1080, Bitrate: 4_000_000, Size: 300 << 20},
@@ -440,5 +450,68 @@ func TestHistory(t *testing.T) {
 	}
 	if code, _ := call(t, s, base, "/api/history/clear", map[string]any{}); code != 200 {
 		t.Errorf("clear: %d", code)
+	}
+}
+
+func TestAppHooks(t *testing.T) {
+	var mu sync.Mutex
+	var saved, revealed []string
+	var busy []bool
+	s, base := testServerWith(t, func(c *Config) {
+		c.App = true
+		c.OnSaved = func(p string) { mu.Lock(); saved = append(saved, p); mu.Unlock() }
+		c.OnBusy = func(b bool) { mu.Lock(); busy = append(busy, b); mu.Unlock() }
+		c.Reveal = func(p string) error { mu.Lock(); revealed = append(revealed, p); mu.Unlock(); return nil }
+	})
+	s.checkFFmpeg = func() error { return errors.New("no ffmpeg") }
+
+	_, res := call(t, s, base, "/api/state", nil)
+	if res["app"] != true {
+		t.Errorf("state.app: %v", res["app"])
+	}
+	for _, c := range res["audioContainers"].([]any) {
+		if c == "mp3" {
+			t.Error("mp3 offered in the app without ffmpeg")
+		}
+	}
+	if code, _ := call(t, s, base, "/api/quit", map[string]any{}); code != 400 {
+		t.Errorf("quit in the app: %d", code)
+	}
+
+	code, res := call(t, s, base, "/api/download", map[string]any{
+		"items": []map[string]string{{"id": "aqz-KE-bpKQ", "title": "One"}}, "format": "mp4", "outputDir": s.cfg.OutputDir,
+	})
+	if code != 200 {
+		t.Fatalf("download: %d %v", code, res)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(busy)
+		mu.Unlock()
+		if n >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	mu.Lock()
+	gotSaved, gotBusy := append([]string{}, saved...), append([]bool{}, busy...)
+	mu.Unlock()
+	if len(gotSaved) != 1 || filepath.Base(gotSaved[0]) != "aqz-KE-bpKQ.mp4" {
+		t.Errorf("saved: %v", gotSaved)
+	}
+	if len(gotBusy) != 2 || !gotBusy[0] || gotBusy[1] {
+		t.Errorf("busy: %v", gotBusy)
+	}
+
+	_, res = call(t, s, base, "/api/history", nil)
+	id := res["entries"].([]any)[0].(map[string]any)["id"].(string)
+	if code, _ := call(t, s, base, "/api/history/open", map[string]any{"id": id}); code != 200 {
+		t.Errorf("history open: %d", code)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(revealed) != 1 || revealed[0] != gotSaved[0] {
+		t.Errorf("revealed: %v", revealed)
 	}
 }

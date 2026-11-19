@@ -25,3 +25,10 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  android:
+    needs: goreleaser
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+    permissions:
+      contents: write

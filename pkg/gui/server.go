@@ -50,6 +50,17 @@ type Config struct {
 	IdleTimeout time.Duration
 	// History records saved files; nil turns the history off.
 	History *history.Store
+
+	// App is set when the page runs inside the ytconv Android app: there is
+	// no Quit button (the app owns the server) and the formats that need
+	// ffmpeg are hidden when it is missing.
+	App bool
+	// Optional hooks for hosts that cannot start a file manager (Android).
+	// nil means the desktop behaviour.
+	Reveal     func(path string) error // show a saved file
+	OpenFolder func(dir string) error  // open a folder
+	OnSaved    func(path string)       // a file was saved
+	OnBusy     func(busy bool)         // downloads started or all finished
 }
 
 // Server is the GUI backend. Create it with New.
@@ -295,13 +306,19 @@ func (s *Server) handleState(_ *http.Request) (any, error) {
 		jobs[i] = *j
 	}
 	s.mu.Unlock()
+	hasFFmpeg := s.checkFFmpeg() == nil
+	audio := downloader.AudioContainers
+	if s.cfg.App && !hasFFmpeg {
+		audio = slices.DeleteFunc(slices.Clone(audio), func(c string) bool { return c == "mp3" })
+	}
 	return map[string]any{
 		"version":         s.cfg.Version,
 		"outputDir":       s.cfg.OutputDir,
-		"ffmpeg":          s.checkFFmpeg() == nil,
+		"app":             s.cfg.App,
+		"ffmpeg":          hasFFmpeg,
 		"ffmpegHint":      ffmpeg.InstallHint(runtime.GOOS),
 		"videoContainers": downloader.VideoContainers,
-		"audioContainers": downloader.AudioContainers,
+		"audioContainers": audio,
 		"mp3Bitrates":     downloader.MP3Bitrates,
 		"history":         s.cfg.History != nil,
 		"jobs":            jobs,
@@ -579,13 +596,36 @@ func (s *Server) handleOpen(r *http.Request) (any, error) {
 	if path == "" {
 		return nil, badRequest("this download has no file yet")
 	}
-	if err := revealFile(path); err != nil {
+	if err := s.reveal(path); err != nil {
 		return nil, err
 	}
 	return map[string]bool{"ok": true}, nil
 }
 
+func (s *Server) reveal(path string) error {
+	if s.cfg.Reveal != nil {
+		return s.cfg.Reveal(path)
+	}
+	return revealFile(path)
+}
+
+func (s *Server) openDir(dir string) error {
+	if s.cfg.OpenFolder != nil {
+		return s.cfg.OpenFolder(dir)
+	}
+	return openFolder(dir)
+}
+
+func (s *Server) setBusy(busy bool) {
+	if s.cfg.OnBusy != nil {
+		s.cfg.OnBusy(busy)
+	}
+}
+
 func (s *Server) handleQuit(_ *http.Request) (any, error) {
+	if s.cfg.App {
+		return nil, badRequest("the app cannot be stopped from the page")
+	}
 	if s.stop != nil {
 		go func() {
 			time.Sleep(200 * time.Millisecond) // let the response go out
@@ -684,6 +724,9 @@ func (s *Server) worker(ctx context.Context) {
 		if j.Status != statusQueued {
 			s.mu.Unlock()
 			cancel()
+			if !s.busy() {
+				s.setBusy(false)
+			}
 			continue
 		}
 		j.cancel = cancel
@@ -692,10 +735,12 @@ func (s *Server) worker(ctx context.Context) {
 		s.publishLocked(j)
 		job := *j // immutable input for the downloader
 		s.mu.Unlock()
+		s.setBusy(true)
 
 		path, err := s.fetch(jctx, &job, &jobReporter{s: s, j: j})
 		cancelled := jctx.Err() != nil && err != nil
 		cancel()
+		saved := ""
 
 		s.update(j, func(j *Job) {
 			j.cancel = nil
@@ -712,8 +757,15 @@ func (s *Server) worker(ctx context.Context) {
 				j.Status, j.Path, j.Progress = statusSaved, path, 1
 				j.Detail = fmt.Sprintf("%s · %.1fs", utils.FormatSize(size), time.Since(j.start).Seconds())
 				s.record(j, size)
+				saved = path
 			}
 		})
+		if saved != "" && s.cfg.OnSaved != nil {
+			s.cfg.OnSaved(saved)
+		}
+		if !s.busy() {
+			s.setBusy(false)
+		}
 	}
 }
 
@@ -783,7 +835,7 @@ func (s *Server) handleHistoryOpen(r *http.Request) (any, error) {
 		return nil, badRequest("this download is not in the history anymore")
 	}
 	if _, err := os.Stat(e.Path); err == nil {
-		if err := revealFile(e.Path); err != nil {
+		if err := s.reveal(e.Path); err != nil {
 			return nil, err
 		}
 		return map[string]bool{"ok": true}, nil
@@ -792,7 +844,7 @@ func (s *Server) handleHistoryOpen(r *http.Request) (any, error) {
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		return nil, badRequest("the file and its folder are gone: %s", dir)
 	}
-	if err := openFolder(dir); err != nil {
+	if err := s.openDir(dir); err != nil {
 		return nil, err
 	}
 	return map[string]bool{"ok": true}, nil
