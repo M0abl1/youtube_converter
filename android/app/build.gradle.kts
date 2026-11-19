@@ -19,7 +19,7 @@ android {
         applicationId = "io.github.m0abl1.ytconv"
         minSdk = 26
         targetSdk = 34
-        versionCode = appVersionCode
+        versionCode = appVersionCode.coerceAtLeast(1)
         versionName = appVersion
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
