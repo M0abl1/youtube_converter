@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ytconv</string>
+    <string name="app_name" translatable="false">ytconv</string>
     <string name="share_label">Download with ytconv</string>
     <string name="channel_name">Downloads</string>
     <string name="channel_desc">Shown while ytconv is downloading</string>
