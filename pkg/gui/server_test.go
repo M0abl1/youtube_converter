@@ -515,3 +515,49 @@ func TestAppHooks(t *testing.T) {
 		t.Errorf("revealed: %v", revealed)
 	}
 }
+
+func TestAppScopedStorage(t *testing.T) {
+	var staging string
+	s, base := testServerWith(t, func(c *Config) {
+		c.App = true
+		// A scoped storage host can publish here even though Go cannot mkdir.
+		c.OutputDir = filepath.Join(t.TempDir(), "Download", "ytconv")
+		c.Publish = func(_ context.Context, path, dir string) (string, error) {
+			staging = filepath.Dir(path)
+			if filepath.Dir(staging) != c.TmpDir || dir != filepath.Join(c.OutputDir, "my-list") {
+				return "", errors.New("unexpected staging or destination directory")
+			}
+			return filepath.Join(dir, "one (1).m4a"), nil
+		}
+		c.FileExists = func(path string) bool { return filepath.Base(path) == "one (1).m4a" }
+	})
+	code, res := call(t, s, base, "/api/download", map[string]any{
+		"items":  []map[string]string{{"id": "aqz-KE-bpKQ", "title": "One"}},
+		"format": "m4a", "outputDir": t.TempDir(), "folder": "My List",
+	})
+	dir := filepath.Join(s.cfg.OutputDir, "my-list")
+	if code != 200 || res["folder"] != dir {
+		t.Fatalf("download: %d %v", code, res)
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		_, res = call(t, s, base, "/api/history", nil)
+		if entries := res["entries"].([]any); len(entries) != 0 {
+			entry := entries[0].(map[string]any)
+			if entry["path"] != filepath.Join(dir, "one (1).m4a") || entry["exists"] != true || entry["size"] != float64(4) {
+				t.Errorf("history: %v", entry)
+			}
+			// Access staging under the same lock used to mark the job saved.
+			s.mu.Lock()
+			_, err := os.Stat(staging)
+			s.mu.Unlock()
+			if !os.IsNotExist(err) {
+				t.Errorf("staging directory remains: %v", err)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("published file is missing from history: %v", res)
+}

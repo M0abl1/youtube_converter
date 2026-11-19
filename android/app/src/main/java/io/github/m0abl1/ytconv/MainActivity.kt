@@ -20,6 +20,7 @@ import android.webkit.WebViewClient
 class MainActivity : Activity() {
     private lateinit var web: WebView
     private var baseUrl: String? = null
+    private var localOrigin: Uri? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,8 +36,14 @@ class MainActivity : Activity() {
                 // Only the local page stays inside the app; any other link
                 // opens in the browser.
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                    if (request.url.host == "127.0.0.1") return false
-                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, request.url)) }
+                    val url = request.url
+                    val origin = localOrigin
+                    if (origin != null && url.scheme == origin.scheme && url.encodedAuthority == origin.encodedAuthority) {
+                        return false
+                    }
+                    if (request.isForMainFrame && url.scheme == "https") {
+                        runCatching { startActivity(Intent(Intent.ACTION_VIEW, url)) }
+                    }
                     return true
                 }
             }
@@ -55,8 +62,19 @@ class MainActivity : Activity() {
                 .show()
             return
         }
+        localOrigin = baseUrl?.let(Uri::parse)
         load(intent)
         UpdateCheck.run(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Core.resumed(this)
+    }
+
+    override fun onPause() {
+        Core.paused(this)
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -82,7 +100,7 @@ class MainActivity : Activity() {
     private fun askPermissions() {
         val wanted = buildList {
             if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-            if (Build.VERSION.SDK_INT <= 29) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            if (Build.VERSION.SDK_INT <= 28) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
     }

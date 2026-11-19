@@ -27,10 +27,21 @@ type Host interface {
 	// Saved is called after a file is saved, so it shows up in the gallery
 	// and music apps.
 	Saved(path string)
+	// ScopedStorage reports whether downloads must be published by the host.
+	ScopedStorage() bool
+	// Publish copies a complete file to public storage and returns its actual path.
+	Publish(stagedPath, dir string, transfer *Transfer) (string, error)
+	// FileExists checks public storage in scoped storage mode.
+	FileExists(path string) (bool, error)
 	// Busy is called with true when a download starts and false when the
 	// queue is empty.
 	Busy(busy bool)
 }
+
+// Transfer lets the host check whether a job was cancelled while publishing.
+type Transfer struct{ ctx context.Context }
+
+func (t *Transfer) Cancelled() bool { return t.ctx.Err() != nil }
 
 var (
 	mu     sync.Mutex
@@ -70,6 +81,15 @@ func Start(filesDir, cacheDir, outDir, version string, host Host) (string, error
 		OpenFolder:  host.OpenFolder,
 		OnSaved:     host.Saved,
 		OnBusy:      host.Busy,
+	}
+	if host.ScopedStorage() {
+		cfg.Publish = func(ctx context.Context, path, dir string) (string, error) {
+			return host.Publish(path, dir, &Transfer{ctx: ctx})
+		}
+		cfg.FileExists = func(path string) bool {
+			exists, err := host.FileExists(path)
+			return err == nil && exists
+		}
 	}
 	if h, err := history.Open(filepath.Join(filesDir, "history.json")); err == nil {
 		cfg.History = h

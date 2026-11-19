@@ -44,7 +44,13 @@ class DownloadService : Service() {
         } else {
             startForeground(ID, notification)
         }
+        Core.foreground(this, startId)
         return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        Core.serviceDestroyed(this)
+        super.onDestroy()
     }
 
     private companion object {

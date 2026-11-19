@@ -39,7 +39,7 @@ object UpdateCheck {
         }.start()
     }
 
-    private fun fetchLatestTag(): String {
+    private fun fetchLatestTag(): String? {
         val conn = URL(LATEST).openConnection() as HttpURLConnection
         conn.connectTimeout = 8000
         conn.readTimeout = 8000
@@ -47,7 +47,14 @@ object UpdateCheck {
         conn.setRequestProperty("User-Agent", "ytconv-android")
         try {
             val body = conn.inputStream.bufferedReader().use { it.readText() }
-            return JSONObject(body).getString("tag_name").removePrefix("v")
+            val release = JSONObject(body)
+            val assets = release.getJSONArray("assets")
+            for (i in 0 until assets.length()) {
+                if (assets.getJSONObject(i).optString("name") == "ytconv-android.apk") {
+                    return release.getString("tag_name").removePrefix("v")
+                }
+            }
+            return null
         } finally {
             conn.disconnect()
         }

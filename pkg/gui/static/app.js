@@ -672,7 +672,8 @@ async function init() {
     if (state.app) enterAppMode();
     const fmt = recall("format");
     if (fmt && (s.videoContainers.includes(fmt) || s.audioContainers.includes(fmt))) state.format = fmt;
-    $("outdir").value = recall("outdir") || s.outputDir;
+    $("outdir").value = (state.app ? null : recall("outdir")) || s.outputDir;
+    $("outdir").readOnly = state.app;
     resetJobs(s.jobs || []);
   } catch (e) {
     setError($("fetch-error"), e.message);

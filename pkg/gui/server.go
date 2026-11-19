@@ -61,6 +61,10 @@ type Config struct {
 	OpenFolder func(dir string) error  // open a folder
 	OnSaved    func(path string)       // a file was saved
 	OnBusy     func(busy bool)         // downloads started or all finished
+	// Publish optionally moves a completed download from private storage to its
+	// public destination. It returns the actual path when the host renames it.
+	Publish    func(ctx context.Context, stagedPath, dir string) (string, error)
+	FileExists func(path string) bool // public file lookup for a host with scoped storage
 }
 
 // Server is the GUI backend. Create it with New.
@@ -427,8 +431,8 @@ type downloadRequest struct {
 	MaxHeight    int    `json:"maxHeight"`    // 0 = best available
 	AudioQuality string `json:"audioQuality"` // best, medium, low
 	MP3Bitrate   int    `json:"mp3Bitrate"`   // kbps; 0 = best VBR
-	OutputDir string `json:"outputDir"`
-	Folder    string `json:"folder"` // playlist title: save into a sub-folder
+	OutputDir    string `json:"outputDir"`
+	Folder       string `json:"folder"` // playlist title: save into a sub-folder
 	// The playlist the items come from, for the history; empty for a video.
 	ListID    string `json:"listId"`
 	ListTitle string `json:"listTitle"`
@@ -463,6 +467,9 @@ func (s *Server) handleDownload(r *http.Request) (any, error) {
 	}
 
 	dir := strings.TrimSpace(in.OutputDir)
+	if s.cfg.App {
+		dir = s.cfg.OutputDir
+	}
 	if strings.HasPrefix(dir, "~") {
 		if home, err := os.UserHomeDir(); err == nil {
 			dir = filepath.Join(home, dir[1:])
@@ -475,8 +482,10 @@ func (s *Server) handleDownload(r *http.Request) (any, error) {
 	if in.Folder != "" {
 		dir = filepath.Join(dir, downloader.Name("", in.Folder, "playlist"))
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, badRequest("cannot use folder %s: %v", dir, err)
+	if s.cfg.Publish == nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, badRequest("cannot use folder %s: %v", dir, err)
+		}
 	}
 
 	opts := downloader.Options{Container: container, ForceH264: in.H264, OutputDir: dir, TmpDir: s.cfg.TmpDir}
@@ -508,9 +517,12 @@ func (s *Server) handleDownload(r *http.Request) (any, error) {
 		if j.Title == "" {
 			j.Title = id
 		}
-		if downloader.Exists(dir, it.Title, id, container) && in.Folder != "" {
-			j.Status, j.Progress, j.Detail = statusSaved, 1, "already downloaded"
-			j.Path = filepath.Join(dir, downloader.Name("", it.Title, id)+"."+container)
+		if in.Folder != "" {
+			path := filepath.Join(dir, downloader.Name("", it.Title, id)+"."+container)
+			if s.fileExists(path) {
+				j.Status, j.Progress, j.Detail = statusSaved, 1, "already downloaded"
+				j.Path = path
+			}
 		}
 		s.jobs = append(s.jobs, j)
 		ids = append(ids, j.ID)
@@ -737,7 +749,7 @@ func (s *Server) worker(ctx context.Context) {
 		s.mu.Unlock()
 		s.setBusy(true)
 
-		path, err := s.fetch(jctx, &job, &jobReporter{s: s, j: j})
+		path, size, err := s.fetchFile(jctx, &job, &jobReporter{s: s, j: j})
 		cancelled := jctx.Err() != nil && err != nil
 		cancel()
 		saved := ""
@@ -750,10 +762,6 @@ func (s *Server) worker(ctx context.Context) {
 			case err != nil:
 				j.Status, j.Error, j.Detail = statusFailed, err.Error(), ""
 			default:
-				var size int64
-				if st, err := os.Stat(path); err == nil {
-					size = st.Size()
-				}
 				j.Status, j.Path, j.Progress = statusSaved, path, 1
 				j.Detail = fmt.Sprintf("%s · %.1fs", utils.FormatSize(size), time.Since(j.start).Seconds())
 				s.record(j, size)
@@ -782,7 +790,36 @@ func (s *Server) record(j *Job, size int64) {
 		fmt.Fprintln(os.Stderr, "ytconv: could not save the history:", err)
 		return
 	}
-	s.broadcastLocked("history", historyItem(e))
+	// The worker just published this file. Avoid a storage lookup under mu.
+	s.broadcastLocked("history", historyEntry{Entry: e, Folder: filepath.Dir(e.Path), Exists: true})
+}
+
+func (s *Server) fetchFile(ctx context.Context, j *Job, r downloader.Reporter) (string, int64, error) {
+	dir := j.opts.OutputDir
+	if s.cfg.Publish != nil {
+		staging, err := os.MkdirTemp(s.cfg.TmpDir, "publish-")
+		if err != nil {
+			return "", 0, err
+		}
+		defer os.RemoveAll(staging)
+		staged := *j
+		staged.opts.OutputDir = staging
+		j = &staged
+	}
+	path, err := s.fetch(ctx, j, r)
+	if err != nil {
+		return "", 0, err
+	}
+	var size int64
+	if st, err := os.Stat(path); err == nil {
+		size = st.Size()
+	}
+	if s.cfg.Publish != nil {
+		r.Begin(downloader.StageMux)
+		path, err = s.cfg.Publish(ctx, path, dir)
+		r.End(downloader.StageMux, err)
+	}
+	return path, size, err
 }
 
 // historyEntry is an Entry plus its folder and whether the file is still there.
@@ -792,9 +829,16 @@ type historyEntry struct {
 	Exists bool   `json:"exists"`
 }
 
-func historyItem(e history.Entry) historyEntry {
-	_, err := os.Stat(e.Path)
-	return historyEntry{Entry: e, Folder: filepath.Dir(e.Path), Exists: err == nil}
+func (s *Server) fileExists(path string) bool {
+	if s.cfg.FileExists != nil {
+		return s.cfg.FileExists(path)
+	}
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func (s *Server) historyItem(e history.Entry) historyEntry {
+	return historyEntry{Entry: e, Folder: filepath.Dir(e.Path), Exists: s.fileExists(e.Path)}
 }
 
 func (s *Server) historyStore() (*history.Store, error) {
@@ -812,7 +856,7 @@ func (s *Server) handleHistory(_ *http.Request) (any, error) {
 	list := h.List()
 	out := make([]historyEntry, len(list))
 	for i, e := range list {
-		out[i] = historyItem(e)
+		out[i] = s.historyItem(e)
 	}
 	return map[string]any{"entries": out}, nil
 }
@@ -834,15 +878,17 @@ func (s *Server) handleHistoryOpen(r *http.Request) (any, error) {
 	if !ok {
 		return nil, badRequest("this download is not in the history anymore")
 	}
-	if _, err := os.Stat(e.Path); err == nil {
+	if s.fileExists(e.Path) {
 		if err := s.reveal(e.Path); err != nil {
 			return nil, err
 		}
 		return map[string]bool{"ok": true}, nil
 	}
 	dir := filepath.Dir(e.Path)
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
-		return nil, badRequest("the file and its folder are gone: %s", dir)
+	if s.cfg.FileExists == nil {
+		if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+			return nil, badRequest("the file and its folder are gone: %s", dir)
+		}
 	}
 	if err := s.openDir(dir); err != nil {
 		return nil, err

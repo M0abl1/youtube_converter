@@ -9,10 +9,15 @@ import (
 
 type fakeHost struct{}
 
-func (fakeHost) Reveal(string) error     { return nil }
-func (fakeHost) OpenFolder(string) error { return nil }
-func (fakeHost) Saved(string)            {}
-func (fakeHost) Busy(bool)               {}
+func (fakeHost) Reveal(string) error             { return nil }
+func (fakeHost) OpenFolder(string) error         { return nil }
+func (fakeHost) Saved(string)                    {}
+func (fakeHost) Busy(bool)                       {}
+func (fakeHost) ScopedStorage() bool             { return false }
+func (fakeHost) FileExists(string) (bool, error) { return false, nil }
+func (fakeHost) Publish(string, string, *Transfer) (string, error) {
+	panic("publishing requires scoped storage")
+}
 
 func TestStartStop(t *testing.T) {
 	u, err := Start(t.TempDir(), t.TempDir(), t.TempDir(), "test", fakeHost{})
