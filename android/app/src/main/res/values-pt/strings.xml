@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_label">Baixar com o ytconv</string>
+    <string name="channel_name">Downloads</string>
+    <string name="channel_desc">Aparece enquanto o ytconv está baixando</string>
+    <string name="downloading">Baixando… Toque para ver a fila.</string>
+    <string name="start_failed">O ytconv não conseguiu iniciar: %1$s</string>
+    <string name="update_title">Nova versão disponível</string>
+    <string name="update_message">O ytconv %1$s saiu (você tem a %2$s). Baixar pelo GitHub?</string>
+    <string name="update_download">Baixar</string>
+    <string name="update_later">Depois</string>
+</resources>

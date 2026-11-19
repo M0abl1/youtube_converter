@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ytconv</string>
+    <string name="share_label">Download with ytconv</string>
+    <string name="channel_name">Downloads</string>
+    <string name="channel_desc">Shown while ytconv is downloading</string>
+    <string name="downloading">Downloading… Tap to see the queue.</string>
+    <string name="start_failed">ytconv could not start: %1$s</string>
+    <string name="update_title">New version available</string>
+    <string name="update_message">ytconv %1$s is out (you have %2$s). Download it from GitHub?</string>
+    <string name="update_download">Download</string>
+    <string name="update_later">Later</string>
+</resources>

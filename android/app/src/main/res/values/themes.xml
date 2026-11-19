@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A light parent makes the WebView report prefers-color-scheme: light;
+         values-night switches to a dark parent, so the page follows the
+         system theme like on the desktop. -->
+    <style name="Theme.Ytconv" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/page</item>
+        <item name="android:statusBarColor">@color/page</item>
+        <item name="android:navigationBarColor">@color/navy</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:colorAccent">@color/teal</item>
+    </style>
+</resources>
