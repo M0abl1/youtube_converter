@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/downloader"
-	"github.com/Sn0wye/ytd/pkg/ui"
-	"github.com/Sn0wye/ytd/pkg/utils"
-	"github.com/Sn0wye/ytd/pkg/youtube"
+	"github.com/M0abl1/youtube_converter/pkg/downloader"
+	"github.com/M0abl1/youtube_converter/pkg/ui"
+	"github.com/M0abl1/youtube_converter/pkg/utils"
+	"github.com/M0abl1/youtube_converter/pkg/youtube"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,7 @@ var downCmd = &cobra.Command{
 	Use:   "down <url>",
 	Short: "Download a YouTube video or playlist, choosing video and audio quality",
 	Long: `Download a YouTube video. You pick the video quality and the audio quality,
-ytd downloads both streams in parallel and merges them into a single file in
+ytconv downloads both streams in parallel and merges them into a single file in
 the chosen format (mp4 by default). Streams are copied as-is, never
 re-encoded, and no external program is needed.
 
@@ -51,13 +51,13 @@ into a folder named after the playlist. Videos already saved there are
 skipped, so running the same command again resumes the playlist.
 
 Examples:
-  ytd down https://www.youtube.com/watch?v=aqz-KE-bpKQ
-  ytd down https://youtu.be/aqz-KE-bpKQ --best
-  ytd down <url> --format webm
-  ytd down <url> --audio-only            # m4a
-  ytd down <url> --format opus
-  ytd down "https://www.youtube.com/playlist?list=PL..." --format mp3
-  ytd down "https://www.youtube.com/watch?v=ID&list=PL..." --playlist --items 1-10`,
+  ytconv down https://www.youtube.com/watch?v=aqz-KE-bpKQ
+  ytconv down https://youtu.be/aqz-KE-bpKQ --best
+  ytconv down <url> --format webm
+  ytconv down <url> --audio-only            # m4a
+  ytconv down <url> --format opus
+  ytconv down "https://www.youtube.com/playlist?list=PL..." --format mp3
+  ytconv down "https://www.youtube.com/watch?v=ID&list=PL..." --playlist --items 1-10`,
 	Args: cobra.ExactArgs(1),
 	Run: func(_ *cobra.Command, args []string) {
 		err := download(args[0])

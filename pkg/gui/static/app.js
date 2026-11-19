@@ -1,6 +1,6 @@
 "use strict";
 
-// The token is in the URL ytd opened; every API call must carry it.
+// The token is in the URL ytconv opened; every API call must carry it.
 const token = new URLSearchParams(location.search).get("token") || "";
 const $ = (id) => document.getElementById(id);
 
@@ -16,14 +16,14 @@ const state = {
 };
 
 function store(key, value) {
-  try { localStorage.setItem("ytd." + key, value); } catch { /* storage may be blocked */ }
+  try { localStorage.setItem("ytconv." + key, value); } catch { /* storage may be blocked */ }
 }
 function recall(key) {
-  try { return localStorage.getItem("ytd." + key); } catch { return null; }
+  try { return localStorage.getItem("ytconv." + key); } catch { return null; }
 }
 
 async function api(path, body) {
-  const opts = { headers: { "X-YTD-Token": token } };
+  const opts = { headers: { "X-Ytconv-Token": token } };
   if (body !== undefined) {
     opts.method = "POST";
     opts.headers["Content-Type"] = "application/json";
@@ -33,7 +33,7 @@ async function api(path, body) {
   try {
     res = await fetch(path, opts);
   } catch {
-    throw new Error("Could not reach ytd. Is it still running?");
+    throw new Error("Could not reach ytconv. Is it still running?");
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (HTTP ${res.status})`);
@@ -192,7 +192,7 @@ function needsFFmpeg() { return state.format === "mp3" || $("h264").checked; }
 function renderFFmpegWarning() {
   const warn = $("ffmpeg-warn");
   if (needsFFmpeg() && !state.ffmpeg) {
-    warn.textContent = `${state.format === "mp3" ? "MP3" : "H.264"} needs ffmpeg, which was not found. Install it with “${state.ffmpegHint}”, then restart ytd.`;
+    warn.textContent = `${state.format === "mp3" ? "MP3" : "H.264"} needs ffmpeg, which was not found. Install it with “${state.ffmpegHint}”, then restart ytconv.`;
     show(warn, true);
   } else {
     show(warn, false);
@@ -331,14 +331,14 @@ function connectEvents() {
 
 $("quit").addEventListener("click", async () => {
   if ([...state.jobs.values()].some((j) => !finished(j)) &&
-      !confirm("Downloads are still running. Stop ytd anyway?")) return;
+      !confirm("Downloads are still running. Stop ytconv anyway?")) return;
   await api("/api/quit", {}).catch(() => {});
-  document.body.innerHTML = '<main><section class="card"><h1>ytd stopped</h1><p class="dim">You can close this tab.</p></section></main>';
+  document.body.innerHTML = '<main><section class="card"><h1>ytconv stopped</h1><p class="dim">You can close this tab.</p></section></main>';
 });
 
 async function init() {
   if (!token) {
-    setError($("fetch-error"), "This page must be opened from ytd (run “ytd gui”).");
+    setError($("fetch-error"), "This page must be opened from ytconv (run “ytconv gui”).");
     return;
   }
   try {

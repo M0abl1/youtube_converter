@@ -1,7 +1,7 @@
-// Package ui draws ytd's terminal output: a vertical trail of steps with one
+// Package ui draws ytconv's terminal output: a vertical trail of steps with one
 // accent colour, live spinners and progress bars, and an arrow-key picker.
 //
-//	┌  ytd  v0.2
+//	┌  ytconv  v0.2
 //	│
 //	◇  Video found
 //	│  Big Buck Bunny
@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/utils"
+	"github.com/M0abl1/youtube_converter/pkg/utils"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 )
@@ -103,7 +103,7 @@ func (u *UI) gap() {
 // Intro opens the trail.
 func (u *UI) Intro(version string) {
 	u.started = true
-	u.println(u.st.rail.Render(glyphOpen), "  ", u.st.badge.Render("ytd"), "  ", u.st.dim.Render("v"+version))
+	u.println(u.st.rail.Render(glyphOpen), "  ", u.st.badge.Render("ytconv"), "  ", u.st.dim.Render("v"+version))
 	u.gapNext = true
 }
 

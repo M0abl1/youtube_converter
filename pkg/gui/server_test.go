@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/downloader"
-	"github.com/Sn0wye/ytd/pkg/youtube"
+	"github.com/M0abl1/youtube_converter/pkg/downloader"
+	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
 
 // testServer runs the handler on a real loopback listener so Host checks see
@@ -68,7 +68,7 @@ func call(t *testing.T, s *Server, base, path string, body any, mutate ...func(*
 		method, payload = http.MethodPost, string(b)
 	}
 	req, _ := http.NewRequest(method, base+path, strings.NewReader(payload))
-	req.Header.Set("X-YTD-Token", s.token)
+	req.Header.Set("X-Ytconv-Token", s.token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -91,13 +91,13 @@ func TestGuard(t *testing.T) {
 	if code, _ := call(t, s, base, "/api/state", nil); code != 200 {
 		t.Errorf("valid request: %d", code)
 	}
-	if code, _ := call(t, s, base, "/api/state", nil, func(r *http.Request) { r.Header.Del("X-YTD-Token") }); code != 401 {
+	if code, _ := call(t, s, base, "/api/state", nil, func(r *http.Request) { r.Header.Del("X-Ytconv-Token") }); code != 401 {
 		t.Errorf("no token: %d", code)
 	}
-	if code, _ := call(t, s, base, "/api/state", nil, func(r *http.Request) { r.Header.Set("X-YTD-Token", "nope") }); code != 401 {
+	if code, _ := call(t, s, base, "/api/state", nil, func(r *http.Request) { r.Header.Set("X-Ytconv-Token", "nope") }); code != 401 {
 		t.Errorf("wrong token: %d", code)
 	}
-	if code, _ := call(t, s, base, "/api/state?token="+s.token, nil, func(r *http.Request) { r.Header.Del("X-YTD-Token") }); code != 200 {
+	if code, _ := call(t, s, base, "/api/state?token="+s.token, nil, func(r *http.Request) { r.Header.Del("X-Ytconv-Token") }); code != 200 {
 		t.Errorf("token in query: %d", code)
 	}
 	// DNS rebinding: the browser sends the attacker's host name.

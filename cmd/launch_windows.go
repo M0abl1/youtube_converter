@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-// startedByDoubleClick reports whether ytd.exe was started from Explorer
+// startedByDoubleClick reports whether ytconv.exe was started from Explorer
 // rather than from a terminal: Windows then creates a console just for this
 // process, so the console has no other attached process (the shell).
 func startedByDoubleClick() bool {

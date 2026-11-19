@@ -1,4 +1,4 @@
-// Package gui serves ytd's graphical interface: a small web app on the
+// Package gui serves ytconv's graphical interface: a small web app on the
 // loopback interface, opened in the default browser. It uses the same
 // pipeline as the terminal command (pkg/downloader).
 //
@@ -29,10 +29,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/downloader"
-	"github.com/Sn0wye/ytd/pkg/ffmpeg"
-	"github.com/Sn0wye/ytd/pkg/utils"
-	"github.com/Sn0wye/ytd/pkg/youtube"
+	"github.com/M0abl1/youtube_converter/pkg/downloader"
+	"github.com/M0abl1/youtube_converter/pkg/ffmpeg"
+	"github.com/M0abl1/youtube_converter/pkg/utils"
+	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
 
 //go:embed static
@@ -230,7 +230,7 @@ func (s *Server) allowedOrigin(origin string) bool {
 }
 
 func (s *Server) validToken(r *http.Request) bool {
-	t := r.Header.Get("X-YTD-Token")
+	t := r.Header.Get("X-Ytconv-Token")
 	if t == "" {
 		t = r.URL.Query().Get("token") // EventSource cannot set headers
 	}

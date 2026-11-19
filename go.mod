@@ -1,4 +1,4 @@
-module github.com/Sn0wye/ytd
+module github.com/M0abl1/youtube_converter
 
 go 1.22.6
 

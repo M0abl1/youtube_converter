@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/ffmpeg"
-	"github.com/Sn0wye/ytd/pkg/media"
-	"github.com/Sn0wye/ytd/pkg/utils"
-	"github.com/Sn0wye/ytd/pkg/youtube"
+	"github.com/M0abl1/youtube_converter/pkg/ffmpeg"
+	"github.com/M0abl1/youtube_converter/pkg/media"
+	"github.com/M0abl1/youtube_converter/pkg/utils"
+	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
 
 var (
@@ -218,7 +218,7 @@ func Run(ctx context.Context, c *youtube.Client, v *youtube.Video, vf *youtube.F
 	if err := os.MkdirAll(tmp, 0o755); err != nil {
 		return "", err
 	}
-	workDir, err := os.MkdirTemp(tmp, "ytd-")
+	workDir, err := os.MkdirTemp(tmp, "ytconv-")
 	if err != nil {
 		return "", err
 	}

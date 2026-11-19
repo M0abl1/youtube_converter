@@ -1,113 +1,59 @@
-# ytd — YouTube video & playlist downloader
+# ytconv
 
-> **About this repository.** This is my fork of [Sn0wye/ytd](https://github.com/Sn0wye/ytd)
-> (MIT), a fast YouTube downloader written in Go. I added **whole-playlist
-> downloads** and a **local web interface** on top of it, proposed upstream in
-> [Sn0wye/ytd#8](https://github.com/Sn0wye/ytd/pull/8). The original extractor,
-> downloader and muxers are Sn0wye's work; the git history keeps each commit
-> under its real author.
+**Download YouTube videos, audio and whole playlists — from the terminal or
+from a local web interface.** A single Go binary: no login, no API key, no
+Python, no extra programs.
 
-![ytd's web interface listing a 100-video playlist](docs/gui-playlist.png)
+![ytconv's web interface listing a 100-video playlist](docs/gui-playlist.png)
 
-## My contributions
+## Features
 
-**Playlist downloads** (`ytd down <playlist-url>`)
+- **Videos and audio** in mp4, mkv, webm, m4a, opus or mp3, picking the
+  video and audio quality from a list (or `--best`).
+- **Whole playlists**: every video of a playlist in one command, with
+  position ranges (`--items 1-10,15`), resume after an interruption and a
+  final saved/skipped/failed report.
+- **Web interface** (`ytconv gui`): paste a link, pick the format and follow
+  the download queue with live progress, cancel and "show in folder".
+- **Lossless and fast**: streams are copied as YouTube serves them, downloaded
+  over parallel connections and muxed in pure Go. ffmpeg is only needed for
+  mp3 and `--h264`.
+- **Runs anywhere**: static binaries for Windows, macOS and Linux
+  (amd64/arm64). On Windows, double-click `ytconv.exe` to open the interface.
 
-- Lists videos through YouTube's InnerTube `browse` API, follows continuation
-  pages (tested on a 365-video playlist) and parses both the current
-  `lockupViewModel` layout and the legacy `playlistVideoRenderer` one.
-- `--items 1-10,15` to pick positions; private/deleted videos are skipped and
-  counted; mixes (`RD…`) are rejected with a clear message.
-- Resumable: files already on disk are skipped, so re-running continues an
-  interrupted playlist. Expired stream URLs (HTTP 403) are refreshed and
-  retried once. A final summary reports saved/skipped/failed videos.
-- Extracted the per-video logic into a new `pkg/downloader` package shared by
-  the CLI and the GUI.
+## Install
 
-**Local web interface** (`ytd gui`)
+**Windows, macOS, Linux:** download the archive for your system from
+[Releases](https://github.com/M0abl1/youtube_converter/releases) and unpack it.
 
-- Static HTML/CSS/JS embedded in the binary with Go's `embed`: no new
-  dependencies, still a single static binary (`CGO_ENABLED=0`).
-- Download queue with live progress over Server-Sent Events, per-job cancel
-  and "show in folder".
-- Security: listens on `127.0.0.1` only, a random per-session token on every
-  request, `Host`/`Origin` checks, strict CSP and JSON-only bodies, so other
-  websites cannot drive it.
-- Shuts itself down ~30 s after the last tab closes; double-clicking
-  `ytd.exe` on Windows opens it.
+**macOS / Linux, one line:**
 
-**Tests**: unit tests for playlist parsing (trimmed real API responses as
-fixtures), the downloader, `--items` parsing, ffmpeg discovery and the GUI
-server (auth, queue, cancel, shutdown).
+```sh
+curl -fsSL https://raw.githubusercontent.com/M0abl1/youtube_converter/main/install.sh | sh
+```
 
-**Stack**: Go · Cobra · net/http · SSE · vanilla JS · YouTube InnerTube API
-
-### Build and run this fork
+**From source** (Go 1.22+):
 
 ```sh
 git clone https://github.com/M0abl1/youtube_converter
 cd youtube_converter
-go build -o ytd .        # ytd.exe on Windows
-./ytd gui                # web interface
-./ytd down 'https://www.youtube.com/playlist?list=PL...' --format mp3
-go test ./...
+go build -o ytconv .     # ytconv.exe on Windows
 ```
-
-The install options below come from the original project and install
-upstream releases, which do not include playlists or the GUI until
-[#8](https://github.com/Sn0wye/ytd/pull/8) is merged.
-
----
-
-Download YouTube videos and playlists from the terminal or from a simple
-graphical interface. You choose the video quality and the audio quality from a
-list, and ytd hands you back one file in the format you asked for.
-
-- **No login, no API key, no cookies.**
-- **No other programs needed.** Extraction, parallel download and muxing are
-  plain Go. ffmpeg is only used for the two cases that need re-encoding (mp3
-  and `--h264`).
-- **Lossless.** Streams are copied as YouTube serves them, never re-encoded.
-- **Fast.** About twice as fast as yt-dlp on the same streams (see below).
-
-## Install
-
-```sh
-brew tap sn0wye/tap
-brew trust sn0wye/tap   # Homebrew 7+ refuses casks from untrusted taps
-brew install ytd
-```
-
-Or with curl (macOS and Linux):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Sn0wye/ytd/main/install.sh | sh
-```
-
-Or with Go:
-
-```sh
-go install github.com/Sn0wye/ytd@latest
-```
-
-Windows: download the zip from [Releases](https://github.com/Sn0wye/ytd/releases).
-Double-click `ytd.exe` to open the [graphical interface](#graphical-interface),
-or run it from a terminal.
 
 ## Usage
 
 ```sh
-ytd down 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'    # pick quality, get an mp4
-ytd down aqz-KE-bpKQ                                      # same, video ID only
-ytd down https://youtu.be/aqz-KE-bpKQ --best              # no prompts, best quality
-ytd down <url> --format webm                              # VP9/AV1 + Opus
-ytd down <url> --format mkv                               # any codec combination
-ytd down <url> --audio-only                               # m4a (AAC)
-ytd down <url> --format opus                              # Opus audio
-ytd down <url> --format mp3                               # needs ffmpeg
-ytd down <url> --h264                                     # VP9/AV1 -> H.264, needs ffmpeg
-ytd down 'https://www.youtube.com/playlist?list=PL...' --format mp3   # a whole playlist
-ytd gui                                                   # graphical interface
+ytconv down 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'    # pick quality, get an mp4
+ytconv down aqz-KE-bpKQ                                      # same, video ID only
+ytconv down https://youtu.be/aqz-KE-bpKQ --best              # no prompts, best quality
+ytconv down <url> --format webm                              # VP9/AV1 + Opus
+ytconv down <url> --format mkv                               # any codec combination
+ytconv down <url> --audio-only                               # m4a (AAC)
+ytconv down <url> --format opus                              # Opus audio
+ytconv down <url> --format mp3                               # needs ffmpeg
+ytconv down <url> --h264                                     # VP9/AV1 -> H.264, needs ffmpeg
+ytconv down 'https://www.youtube.com/playlist?list=PL...' --format mp3   # a whole playlist
+ytconv gui                                                   # graphical interface
 ```
 
 Accepted inputs: `watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`,
@@ -115,12 +61,12 @@ Accepted inputs: `watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`,
 `playlist?list=` links (also on `music.youtube.com`) or a bare playlist ID.
 
 Quote URLs that contain `?` or `&`. Without quotes, zsh treats `?` as a
-filename pattern and stops with `no matches found` before ytd runs, and any
+filename pattern and stops with `no matches found` before ytconv runs, and any
 shell treats `&` as "run in background". To paste `watch?v=` links unquoted
 in zsh, add this to `~/.zshrc`:
 
 ```sh
-alias ytd='noglob ytd'
+alias ytconv='noglob ytconv'
 ```
 
 | Flag | Default | |
@@ -156,8 +102,8 @@ Output files get title and artist metadata and never overwrite an existing file.
 ### Playlists
 
 ```sh
-ytd down 'https://www.youtube.com/playlist?list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --format mp3
-ytd down 'https://www.youtube.com/watch?v=LYsaKn8FRhc&list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --playlist --items 1-10
+ytconv down 'https://www.youtube.com/playlist?list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --format mp3
+ytconv down 'https://www.youtube.com/watch?v=LYsaKn8FRhc&list=PL_Q15fKxrBb4pxTp2zQm6zZU3-h4dlm05' --playlist --items 1-10
 ```
 
 - Every video gets the best quality that fits the format, without prompts
@@ -166,7 +112,7 @@ ytd down 'https://www.youtube.com/watch?v=LYsaKn8FRhc&list=PL_Q15fKxrBb4pxTp2zQm
 - Videos already saved in that folder are skipped, so running the same
   command again resumes an interrupted playlist.
 - A video that fails does not stop the others. A stream URL that expires
-  (HTTP 403) is retried once with fresh URLs. At the end ytd prints how many
+  (HTTP 403) is retried once with fresh URLs. At the end ytconv prints how many
   were saved, skipped and failed, lists the failed ones and exits with 1 if
   any failed.
 - A `watch?v=…&list=…` link still downloads just that video unless you add
@@ -176,29 +122,29 @@ ytd down 'https://www.youtube.com/watch?v=LYsaKn8FRhc&list=PL_Q15fKxrBb4pxTp2zQm
 ## Graphical interface
 
 ```sh
-ytd gui                      # opens the interface in your browser
-ytd gui --port 8765 --no-open
+ytconv gui                      # opens the interface in your browser
+ytconv gui --port 8765 --no-open
 ```
 
-`ytd gui` starts a small web page served by ytd itself and opens it in your
+`ytconv gui` starts a small web page served by ytconv itself and opens it in your
 default browser. Paste a video or playlist link, pick the format (and, for a
 single video, the video and audio quality), choose the folder and follow the
 downloads in the queue, with cancel and "show in folder" buttons. On Windows,
-double-clicking `ytd.exe` does the same.
+double-clicking `ytconv.exe` does the same.
 
-It needs no extra program or library: the page is built into the ytd binary.
-ytd stops when you press Ctrl+C, click Quit, or about 30 seconds after the
-last ytd tab is closed with nothing left to download.
+It needs no extra program or library: the page is built into the ytconv binary.
+ytconv stops when you press Ctrl+C, click Quit, or about 30 seconds after the
+last ytconv tab is closed with nothing left to download.
 
 The server only listens on `127.0.0.1`. Every request must carry the random
-token that is part of the address ytd opens, and requests with another
+token that is part of the address ytconv opens, and requests with another
 `Host` or `Origin` are refused, so other websites cannot use it to download
 files to your computer.
 
 ## How it works
 
 1. **Extraction** (`pkg/youtube`), ported from yt-dlp's YouTube extractor.
-   ytd gets an anonymous visitor ID from `youtube.com/sw.js_data` (3 KB, where
+   ytconv gets an anonymous visitor ID from `youtube.com/sw.js_data` (3 KB, where
    yt-dlp downloads the 1 MB+ watch page) and calls the InnerTube `player`
    API as the visionOS client. yt-dlp ships that client as its "no JS runtime"
    default: it needs no PO token and returns stream URLs without signature or
@@ -214,10 +160,13 @@ files to your computer.
 
 ## Benchmark
 
-Method (`bench/bench.py`): both tools get the same streams (`ytd --itag V+A`
+These numbers were measured by the author of the original download engine
+([Sn0wye/ytd](https://github.com/Sn0wye/ytd)), which ytconv uses unchanged.
+
+Method (`bench/bench.py`): both tools get the same streams (`ytconv --itag V+A`
 vs `yt-dlp --ignore-config -f V+A --merge-output-format …`) and run strictly
 one at a time. Each round runs both back to back, alternating which goes
-first, and the result is the per-round ratio `t_yt-dlp / t_ytd`: network
+first, and the result is the per-round ratio `t_yt-dlp / t_ytconv`: network
 drift hits both runs of a pair alike, so the ratio cancels most of it. The
 speedup is the geometric mean of 7 ratios with a 95% confidence interval. As a
 cross-check, a googlevideo probe (80 MiB, 4 connections, a stream not under
@@ -229,7 +178,7 @@ clock, including extraction and merging.
 [b8wsjx7dFwM](https://www.youtube.com/watch?v=b8wsjx7dFwM) (6:00, 4K60 SDR,
 3840x1600), best stream per codec plus the best audio for the container:
 
-| Codec → container | Streams | ytd median | yt-dlp median | Speedup (95% CI) | Normalised | Without yt-dlp's sleep |
+| Codec → container | Streams | ytconv median | yt-dlp median | Speedup (95% CI) | Normalised | Without yt-dlp's sleep |
 |---|---|---|---|---|---|---|
 | H.264 1080p60 → mp4 | 299 + 140 AAC, 179 MiB | 3.6 s | 12.2 s | **3.46x** (3.19–3.75) | 3.33x (2.98–3.72) | 2.14x (1.93–2.36) |
 | VP9 2160p60 → webm | 315 + 251 Opus, 603 MiB | 10.2 s | 23.9 s | **2.34x** (2.04–2.67) | – | 1.90x (1.63–2.23) |
@@ -238,13 +187,13 @@ clock, including extraction and merging.
 [LXb3EKWsInQ](https://www.youtube.com/watch?v=LXb3EKWsInQ) (5:14, 4K60 HDR10),
 3 rounds, before the paired method:
 
-| Codec → container | Streams | ytd median | yt-dlp median |
+| Codec → container | Streams | ytconv median | yt-dlp median |
 |---|---|---|---|
 | H.264 1080p60 → mp4 | 299 + 140 AAC | 3.6 s | 12.4 s |
 | VP9 2160p60 HDR → webm | 337 + 251 Opus | 18.1 s | 37.8 s |
 | AV1 2160p60 HDR → webm | 701 + 251 Opus | 14.8 s | 37.6 s |
 
-Every interval excludes 1.0. ytd's run-to-run variation (CV) was 4–11%,
+Every interval excludes 1.0. ytconv's run-to-run variation (CV) was 4–11%,
 yt-dlp's 7–11%. In every case the packets and timestamps of both outputs are
 identical (`ffmpeg -f streamhash`, `-f framecrc`), and so are codec, colour
 and HDR10 metadata (`ffprobe`). `yt-dlp -N 8` changed little (1–5%) because
@@ -258,9 +207,38 @@ YouTube ("Sign in to confirm you're not a bot") for both tools; space the runs o
 
 - No 5.1 audio (those streams come from YouTube clients that need the player
   JavaScript) and no live streams.
-- Age-restricted and members-only videos need a login, which ytd does not do.
+- Age-restricted and members-only videos need a login, which ytconv does not do.
 - "Made for kids" videos are not served to the visionOS client.
 - Private, deleted and members-only videos of a playlist are left out.
 - YouTube changes its clients from time to time. If downloads start failing,
   compare `pkg/youtube/client.go` with `INNERTUBE_CLIENTS` in yt-dlp's
   `yt_dlp/extractor/youtube/_base.py`.
+
+## Project layout
+
+| Path | What it does |
+|---|---|
+| `cmd/` | CLI commands (Cobra): `down`, `gui`, `version` |
+| `pkg/youtube/` | InnerTube client: video info, stream selection, playlist listing |
+| `pkg/downloader/` | Per-video pipeline shared by the CLI and the web UI |
+| `pkg/gui/` | Local HTTP server, job queue, SSE progress, embedded web app |
+| `pkg/media/` | MP4 / WebM / Matroska / Ogg demuxers and writers |
+| `pkg/ffmpeg/` | ffmpeg discovery for mp3 and H.264 re-encoding |
+| `pkg/ui/` | Terminal output and interactive quality pickers |
+
+```sh
+go test ./...   # unit tests, including playlist parsing against real API fixtures
+```
+
+Releases are built by GoReleaser from a GitHub Actions workflow on every
+`v*` tag.
+
+## Credits and license
+
+MIT — see [LICENSE](LICENSE).
+
+ytconv is built on the download engine of [ytd](https://github.com/Sn0wye/ytd)
+by Gabriel Trzimajewski (InnerTube extraction, parallel downloader and
+muxers), also MIT-licensed. Playlist support, the web interface and the shared
+downloader package were written by me for this project; the git history
+keeps each commit under its real author.

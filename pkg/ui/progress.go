@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/utils"
+	"github.com/M0abl1/youtube_converter/pkg/utils"
 )
 
 const barWidth = 30

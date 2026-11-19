@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Paired, order-balanced benchmark of ytd vs yt-dlp with a network probe.
+"""Paired, order-balanced benchmark of ytconv vs yt-dlp with a network probe.
 
 Each round runs both tools back to back (order alternates ABBA-style so linear
 network drift cancels). The main metric is the per-round speed ratio
-t_ytdlp / t_ytd, summarised as a geometric mean with a 95% t-interval on the
+t_ytdlp / t_ytconv, summarised as a geometric mean with a 95% t-interval on the
 log ratios. Right before every run, gvprobe downloads 80 MiB of a stream that
 is not under test from googlevideo, so absolute times can also be normalised
 to the mean line speed. Probe readings outside [0.5x, 2x] of the median are
 treated as probe errors and replaced by the median.
 
 Build the binaries first (from the repo root):
-    go build -o bench/ytd . && go build -o bench/gvprobe-bin ./bench/gvprobe
+    go build -o bench/ytconv . && go build -o bench/gvprobe-bin ./bench/gvprobe
 Then, e.g.:
     python3 bench/bench.py --name vp9 --url 'https://www.youtube.com/watch?v=b8wsjx7dFwM' \
         --itags 315+251 --format webm --rounds 7
@@ -65,8 +65,8 @@ def clean_probes(values):
 
 
 def command(tool, a, d):
-    if tool == "ytd":
-        return [a.ytd, "down", a.url, "--itag", a.itags, "--format", a.format, "-o", d]
+    if tool == "ytconv":
+        return [a.ytconv, "down", a.url, "--itag", a.itags, "--format", a.format, "-o", d]
     return ["yt-dlp", "--ignore-config", "--no-warnings", "--newline", "-f", a.itags,
             "--merge-output-format", a.format, "-o", os.path.join(d, "out.%(ext)s"), a.url]
 
@@ -123,13 +123,13 @@ def validate(ytd_path, ytdlp_path):
               "color_transfer,color_primaries,channels,sample_rate:stream_side_data_list:format=duration")
     pa = sh(["ffprobe", "-v", "error", "-show_entries", fields, "-of", "compact", ytd_path]).splitlines()
     pb = sh(["ffprobe", "-v", "error", "-show_entries", fields, "-of", "compact", ytdlp_path]).splitlines()
-    out["ffprobe_ytd"] = pa
+    out["ffprobe_ytconv"] = pa
     out["ffprobe_ytdlp"] = pb
     out["ffprobe_equal"] = pa == pb
 
     ha = sh(["ffmpeg", "-v", "error", "-i", ytd_path, "-map", "0", "-c", "copy", "-f", "streamhash", "-hash", "md5", "-"])
     hb = sh(["ffmpeg", "-v", "error", "-i", ytdlp_path, "-map", "0", "-c", "copy", "-f", "streamhash", "-hash", "md5", "-"])
-    out["streamhash_ytd"], out["streamhash_ytdlp"] = ha.split(), hb.split()
+    out["streamhash_ytconv"], out["streamhash_ytdlp"] = ha.split(), hb.split()
     out["streamhash_equal"] = ha == hb
 
     def crc(p):
@@ -154,7 +154,7 @@ def validate(ytd_path, ytdlp_path):
         cmd = ["ffmpeg", "-v", "error", "-xerror"] + pre + ["-i", ytd_path] + post + ["-f", "null", "-"]
         p = subprocess.run(cmd, capture_output=True, text=True)
         dec[label] = "ok" if p.returncode == 0 and not p.stderr.strip() else (p.stderr.strip()[-300:] or f"exit {p.returncode}")
-    out["decode_ytd"] = dec
+    out["decode_ytconv"] = dec
     with open(ytd_path, "rb") as f:
         head = f.read(64)
     out["head_bytes"] = head[:40].hex()
@@ -168,7 +168,7 @@ def main():
     ap.add_argument("--itags", required=True)
     ap.add_argument("--format", required=True)
     ap.add_argument("--rounds", type=int, default=7)
-    ap.add_argument("--ytd", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "ytd"))
+    ap.add_argument("--ytconv", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "ytconv"))
     ap.add_argument("--root", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs"))
     ap.add_argument("--probe-itag", default="303")
     a = ap.parse_args()
@@ -181,7 +181,7 @@ def main():
 
     results, keep = [], {}
     for rnd in range(1, a.rounds + 1):
-        order = ["ytd", "ytdlp"] if rnd % 2 == 1 else ["ytdlp", "ytd"]
+        order = ["ytconv", "ytdlp"] if rnd % 2 == 1 else ["ytdlp", "ytconv"]
         for tool in order:
             try:
                 sp = probe()
@@ -199,8 +199,8 @@ def main():
                 else:
                     shutil.rmtree(r["dir"], ignore_errors=True)
 
-    ok = {t: {r["round"]: r for r in results if r["tool"] == t and r["ok"]} for t in ("ytd", "ytdlp")}
-    rounds = sorted(set(ok["ytd"]) & set(ok["ytdlp"]))
+    ok = {t: {r["round"]: r for r in results if r["tool"] == t and r["ok"]} for t in ("ytconv", "ytdlp")}
+    rounds = sorted(set(ok["ytconv"]) & set(ok["ytdlp"]))
     okruns = [r for r in results if r["ok"]]
     cleaned, replaced = clean_probes([r["probe_mbps"] for r in okruns])
     for r, c in zip(okruns, cleaned):
@@ -218,7 +218,7 @@ def main():
                "retries": sum(1 for r in results if r.get("attempts", 1) > 1),
                "line_speed": describe(probes) if len(probes) > 1 else None,
                "probes_replaced": replaced}
-    for t in ("ytd", "ytdlp"):
+    for t in ("ytconv", "ytdlp"):
         rs = [ok[t][i] for i in rounds]
         summary[t] = {
             "raw": describe([r["time"] for r in rs]),
@@ -228,17 +228,17 @@ def main():
             "throughput_mibs": describe([r["size"] / 2**20 / r["time"] for r in rs]),
             "size": rs[0]["size"] if rs else None,
         }
-    pairs = [(ok["ytdlp"][i], ok["ytd"][i]) for i in rounds]
+    pairs = [(ok["ytdlp"][i], ok["ytconv"][i]) for i in rounds]
     summary["ratio_raw"] = ci_ratio([b["time"] / y["time"] for b, y in pairs])
     summary["ratio_normalized"] = ci_ratio([norm(b) / norm(y) for b, y in pairs]) if not math.isnan(pmean) else (float("nan"),) * 3
     summary["ratio_no_sleep"] = ci_ratio([(b["time"] - b["sleep"]) / y["time"] for b, y in pairs])
-    summary["per_round"] = [{"round": i, "ytd": ok["ytd"][i]["time"], "ytdlp": ok["ytdlp"][i]["time"],
+    summary["per_round"] = [{"round": i, "ytconv": ok["ytconv"][i]["time"], "ytdlp": ok["ytdlp"][i]["time"],
                              "ytdlp_sleep": ok["ytdlp"][i]["sleep"],
-                             "probe_before_ytd": ok["ytd"][i]["probe_mbps"],
+                             "probe_before_ytconv": ok["ytconv"][i]["probe_mbps"],
                              "probe_before_ytdlp": ok["ytdlp"][i]["probe_mbps"]} for i in rounds]
-    if "ytd" in keep and "ytdlp" in keep:
+    if "ytconv" in keep and "ytdlp" in keep:
         print("validating round-1 outputs...", flush=True)
-        summary["validation"] = validate(keep["ytd"], keep["ytdlp"])
+        summary["validation"] = validate(keep["ytconv"], keep["ytdlp"])
 
     path = os.path.join(a.root, a.name + ".json")
     with open(path, "w") as f:
@@ -247,7 +247,7 @@ def main():
     def fmt(c):
         return f"{c[0]:.2f}x (95% CI {c[1]:.2f}-{c[2]:.2f})"
     print(f"\n== {a.name}: {len(rounds)} paired rounds")
-    for t in ("ytd", "ytdlp"):
+    for t in ("ytconv", "ytdlp"):
         s = summary[t]
         print(f"{t:6s} raw median {s['raw']['median']:.2f}s (mean {s['raw']['mean']:.2f} ± {s['raw']['sd']:.2f}, CV {100 * s['raw']['cv']:.1f}%)"
               f"  normalized median {(s['normalized'] or {}).get('median', float('nan')):.2f}s  no-sleep median {s['no_sleep']['median']:.2f}s"
@@ -262,7 +262,7 @@ def main():
     v = summary.get("validation")
     if v:
         print(f"validation: ffprobe equal={v['ffprobe_equal']} streamhash equal={v['streamhash_equal']} "
-              f"packets={v['packets']} timestamp diffs={v['timestamp_diffs']} decode={v['decode_ytd']}")
+              f"packets={v['packets']} timestamp diffs={v['timestamp_diffs']} decode={v['decode_ytconv']}")
     print(f"json: {path}")
 
 

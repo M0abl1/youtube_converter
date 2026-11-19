@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/gui"
+	"github.com/M0abl1/youtube_converter/pkg/gui"
 	"github.com/spf13/cobra"
 )
 
@@ -21,18 +21,18 @@ var (
 var guiCmd = &cobra.Command{
 	Use:   "gui",
 	Short: "Open the graphical interface in your browser",
-	Long: `Start ytd's graphical interface: a page served by ytd itself on this
+	Long: `Start ytconv's graphical interface: a page served by ytconv itself on this
 computer (127.0.0.1 only) and opened in your default browser. Paste a video
 or playlist link, pick the format and quality, and follow the downloads.
 
-ytd stops when you press Ctrl+C, click Quit on the page, or about 30 seconds
-after the last ytd tab is closed with nothing left to download.
+ytconv stops when you press Ctrl+C, click Quit on the page, or about 30 seconds
+after the last ytconv tab is closed with nothing left to download.
 
-On Windows, double-clicking ytd.exe opens the graphical interface too.`,
+On Windows, double-clicking ytconv.exe opens the graphical interface too.`,
 	Args: cobra.NoArgs,
 	Run: func(_ *cobra.Command, _ []string) {
 		if err := runGUI(guiPort, !guiNoOpen); err != nil {
-			fmt.Fprintln(os.Stderr, "ytd gui:", err)
+			fmt.Fprintln(os.Stderr, "ytconv gui:", err)
 			os.Exit(1)
 		}
 	},
@@ -61,13 +61,13 @@ func runGUI(port int, open bool) error {
 		return err
 	}
 
-	fmt.Println("ytd is running at", url)
+	fmt.Println("ytconv is running at", url)
 	if open {
 		if err := gui.OpenBrowser(url); err != nil {
 			fmt.Println("Could not open the browser; open the address above.")
 		}
 	}
-	fmt.Println("Keep this window open while you use ytd. Press Ctrl+C (or click Quit on the page) to stop.")
+	fmt.Println("Keep this window open while you use ytconv. Press Ctrl+C (or click Quit on the page) to stop.")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

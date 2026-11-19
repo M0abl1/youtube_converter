@@ -27,7 +27,7 @@ func TestTrailOffTerminal(t *testing.T) {
 	u.Task("Muxing into mp4", "Muxed into mp4")(nil)
 	u.Saved("/tmp/x.mp4", 351_000_000, 13800*time.Millisecond)
 
-	want := `┌   ytd   v0.2
+	want := `┌   ytconv   v0.2
 │
 ◇  Video found
 │  Big Buck Bunny
@@ -62,7 +62,7 @@ func TestFailures(t *testing.T) {
 	u.Intro("0.2")
 	u.Task("Fetching video info", "Video found")(errors.New("x"))
 	u.Fail(errors.New("video unavailable: Private video"))
-	want := "┌   ytd   v0.2\n│\n▲  Fetching video info\n│  video unavailable: Private video\n└  Failed\n"
+	want := "┌   ytconv   v0.2\n│\n▲  Fetching video info\n│  video unavailable: Private video\n└  Failed\n"
 	if got := b.String(); got != want {
 		t.Errorf("task failure: got:\n%s\nwant:\n%s", got, want)
 	}
@@ -71,7 +71,7 @@ func TestFailures(t *testing.T) {
 	u.Intro("0.2")
 	u.Info("Big Buck Bunny", "Blender", time.Minute)
 	u.Fail(errors.New("no terminal"))
-	want = "┌   ytd   v0.2\n│  Big Buck Bunny\n│  Blender · 1:00\n│\n▲  no terminal\n└  Failed\n"
+	want = "┌   ytconv   v0.2\n│  Big Buck Bunny\n│  Blender · 1:00\n│\n▲  no terminal\n└  Failed\n"
 	if got := b.String(); got != want {
 		t.Errorf("failure outside a step: got:\n%s\nwant:\n%s", got, want)
 	}

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/youtube"
+	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
 
 func main() {

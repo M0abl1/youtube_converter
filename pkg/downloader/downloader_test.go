@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Sn0wye/ytd/pkg/youtube"
+	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
 
 func TestParseItems(t *testing.T) {

@@ -180,8 +180,8 @@ func WriteMatroska(out *os.File, tracks []*Track, meta Meta, webm bool) error {
 	info := element(func(w *ebmlWriter) {
 		w.master(idInfo, func(w *ebmlWriter) {
 			w.uint(idTimecodeScale, 1_000_000)
-			w.str(idMuxingApp, "ytd")
-			w.str(idWritingApp, "ytd")
+			w.str(idMuxingApp, "ytconv")
+			w.str(idWritingApp, "ytconv")
 			w.float(idDuration, durationMS)
 			if meta.Title != "" {
 				w.str(idTitle, meta.Title)
@@ -199,7 +199,7 @@ func WriteMatroska(out *os.File, tracks []*Track, meta Meta, webm bool) error {
 		w.master(idTags, func(w *ebmlWriter) {
 			w.master(idTag, func(w *ebmlWriter) {
 				w.master(idTargets, func(w *ebmlWriter) { w.uint(idTargetTypeValue, 50) })
-				for _, kv := range [][2]string{{"TITLE", meta.Title}, {"ARTIST", meta.Artist}, {"ENCODER", "ytd"}} {
+				for _, kv := range [][2]string{{"TITLE", meta.Title}, {"ARTIST", meta.Artist}, {"ENCODER", "ytconv"}} {
 					if kv[1] == "" {
 						continue
 					}

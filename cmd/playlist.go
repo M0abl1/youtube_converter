@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Sn0wye/ytd/pkg/downloader"
-	"github.com/Sn0wye/ytd/pkg/ffmpeg"
-	"github.com/Sn0wye/ytd/pkg/ui"
-	"github.com/Sn0wye/ytd/pkg/utils"
-	"github.com/Sn0wye/ytd/pkg/youtube"
+	"github.com/M0abl1/youtube_converter/pkg/downloader"
+	"github.com/M0abl1/youtube_converter/pkg/ffmpeg"
+	"github.com/M0abl1/youtube_converter/pkg/ui"
+	"github.com/M0abl1/youtube_converter/pkg/utils"
+	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
 
 // errSomeFailed ends a playlist run in which some videos failed. The summary

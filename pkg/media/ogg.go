@@ -113,7 +113,7 @@ func WriteOggOpus(out *os.File, t *Track, meta Meta) error {
 	}
 	var tags bytes.Buffer
 	tags.WriteString("OpusTags")
-	vendor := "ytd"
+	vendor := "ytconv"
 	binary.Write(&tags, binary.LittleEndian, uint32(len(vendor)))
 	tags.WriteString(vendor)
 	var comments []string

@@ -75,7 +75,7 @@ func mux(t *testing.T, container string, files ...string) string {
 		srcs = append(srcs, Source{Path: filepath.Join("testdata", f), Ext: filepath.Ext(f)[1:]})
 	}
 	out := filepath.Join(t.TempDir(), "out."+container)
-	if err := Mux(out, container, srcs, Meta{Title: "Test", Artist: "ytd"}); err != nil {
+	if err := Mux(out, container, srcs, Meta{Title: "Test", Artist: "ytconv"}); err != nil {
 		t.Fatalf("Mux %s %v: %v", container, files, err)
 	}
 	return out

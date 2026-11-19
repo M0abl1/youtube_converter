@@ -3,7 +3,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/Sn0wye/ytd/pkg/utils"
+	"github.com/M0abl1/youtube_converter/pkg/utils"
 )
 
 func TestSlugifyFilename(t *testing.T) {

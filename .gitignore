@@ -1,7 +1,7 @@
 main
-/ytd
+/ytconv
 .DS_Store
-/bench/ytd
+/bench/ytconv
 /bench/gvprobe-bin
 /bench/runs/
 __pycache__/

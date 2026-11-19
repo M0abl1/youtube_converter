@@ -405,7 +405,7 @@ func writeStbl(w *boxWriter, t *Track, ti int, runs []run, offsets []int64, co64
 
 // writeUdta writes iTunes-style metadata, read by QuickTime, Finder and most players.
 func writeUdta(w *boxWriter, meta Meta) {
-	tags := []struct{ key, val string }{{"\xa9nam", meta.Title}, {"\xa9ART", meta.Artist}, {"\xa9too", "ytd"}}
+	tags := []struct{ key, val string }{{"\xa9nam", meta.Title}, {"\xa9ART", meta.Artist}, {"\xa9too", "ytconv"}}
 	w.box("udta", func() {
 		w.fullBox("meta", 0, 0, func() {
 			w.fullBox("hdlr", 0, 0, func() {
