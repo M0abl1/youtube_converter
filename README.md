@@ -1,10 +1,18 @@
-# ytconv
+<p align="center">
+  <img src="docs/logo.svg" width="96" height="96" alt="ytconv logo">
+</p>
 
-**Download YouTube videos, audio and whole playlists — from the terminal or
-from a local web interface.** A single Go binary: no login, no API key, no
-Python, no extra programs.
+<h1 align="center">ytconv</h1>
 
-![ytconv's web interface in Portuguese, listing a 100-video playlist with quality presets](docs/gui-playlist.png)
+<p align="center">
+  <strong>Turn YouTube videos, audio and whole playlists into files you keep —
+  from the terminal or from a local web interface.</strong><br>
+  A single Go binary: no login, no API key, no Python, no extra programs.
+</p>
+
+![ytconv's web interface in Portuguese, with a 100-video playlist and its quality options](docs/gui-playlist.png)
+
+![The download history, with a playlist grouped together and the folder each file was saved in](docs/gui-history.png)
 
 ## Features
 
@@ -16,6 +24,9 @@ Python, no extra programs.
 - **Web interface** (`ytconv gui`) in **English and Portuguese**: paste a
   link, pick the format and quality and follow the download queue with live
   progress, cancel and "show in folder".
+- **Download history**: every saved file, with the playlists grouped
+  together, the quality, the size, when it was saved and the folder it went
+  to. Search it, open the folder, or remove entries (the files stay on disk).
 - **Quality options**: exact video/audio streams for a single video;
   maximum resolution (4K down to 144p), audio quality (best, medium,
   smallest) and MP3 bitrate (VBR, 320, 256, 192, 128 kbps) for playlists.
@@ -144,6 +155,14 @@ quality, choose the folder and follow the downloads in the queue, with cancel
 and "show in folder" buttons. On Windows, double-clicking `ytconv.exe` does
 the same.
 
+- **Download / History tabs**: the history lists every file saved through
+  the interface, newest first. Videos from the same playlist are grouped
+  under the playlist name, and each file shows its quality, size, date and
+  folder, with "Show in folder" (or "Open folder" when the file was moved or
+  deleted). It is stored only on your computer, in
+  `%AppData%\ytconv\history.json` on Windows, `~/Library/Application Support/ytconv/`
+  on macOS and `~/.config/ytconv/` on Linux; set `YTCONV_HISTORY` to use
+  another file.
 - **Language**: English or Portuguese (PT/EN switch in the corner). The
   first visit follows the browser language; the choice is remembered.
 - **Single video**: pick the exact video and audio stream (resolution,
@@ -243,6 +262,7 @@ YouTube ("Sign in to confirm you're not a bot") for both tools; space the runs o
 | `pkg/youtube/` | InnerTube client: video info, stream selection, playlist listing |
 | `pkg/downloader/` | Per-video pipeline shared by the CLI and the web UI |
 | `pkg/gui/` | Local HTTP server, job queue, SSE progress, embedded web app |
+| `pkg/history/` | Local download history (JSON file, atomic writes) |
 | `pkg/media/` | MP4 / WebM / Matroska / Ogg demuxers and writers |
 | `pkg/ffmpeg/` | ffmpeg discovery for mp3 and H.264 re-encoding |
 | `pkg/ui/` | Terminal output and interactive quality pickers |
@@ -250,6 +270,22 @@ YouTube ("Sign in to confirm you're not a bot") for both tools; space the runs o
 ```sh
 go test ./...   # unit tests, including playlist parsing against real API fixtures
 ```
+
+The Windows icon and file details come from `rsrc_windows_*.syso`, made
+from `winres/icon.png` with
+`go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64,arm64 --icon winres/icon.png`.
+
+## Visual identity
+
+| | |
+|---|---|
+| Logo | A play button turned into a download arrow, landing on an amber tray: a stream becoming a file. [`docs/logo.svg`](docs/logo.svg) |
+| Cobalt `#2F5BEA` | Brand, links, selected controls |
+| Ink `#14213D` | Text |
+| Fog `#EEF1F6` | Background |
+| Amber `#F2A20C` | Progress only — the moment a file is being made |
+
+The interface follows the system light or dark mode.
 
 Releases are built by GoReleaser from a GitHub Actions workflow on every
 `v*` tag.

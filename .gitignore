@@ -6,3 +6,4 @@ main
 /bench/runs/
 __pycache__/
 /dist/
+.playwright-cli/

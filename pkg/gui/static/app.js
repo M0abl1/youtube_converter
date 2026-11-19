@@ -5,6 +5,7 @@ const token = new URLSearchParams(location.search).get("token") || "";
 const $ = (id) => document.getElementById(id);
 
 const state = {
+  view: "download",
   info: null,          // last /api/info result
   url: "",
   format: "mp4",
@@ -16,6 +17,10 @@ const state = {
   fetching: false,
   lastAdded: null,     // {n, folder} of the last download request
   jobs: new Map(),     // id -> job
+  historyOn: true,
+  history: [],         // newest first
+  historyLoaded: false,
+  openGroups: new Set(),
 };
 
 // Preset choices for playlists (height 0 = best available).
@@ -54,11 +59,47 @@ function clock(secs) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
 
+function formatSize(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0, n = bytes;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i === 0 || n >= 100 ? 0 : 1)} ${units[i]}`;
+}
+
+function locale() { return lang === "pt" ? "pt-BR" : "en"; }
+
+// when describes a saved time: "Today, 14:32", "Yesterday, 09:10", "3 Nov, 18:05".
+function when(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const now = new Date();
+  const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (d >= today) return t("today", { time });
+  if (d >= new Date(today - 864e5)) return t("yesterday", { time });
+  const opts = { day: "numeric", month: "short" };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return `${d.toLocaleDateString(locale(), opts)}, ${time}`;
+}
+
 function show(el, on) { el.hidden = !on; }
 
 function setError(el, msg) {
   el.textContent = msg || "";
   show(el, !!msg);
+}
+
+// el builds an element: el("span", {className: "x"}, "text", child, ...).
+function el(tag, props, ...children) {
+  const node = document.createElement(tag);
+  if (props) Object.assign(node, props);
+  for (const c of children) if (c != null && c !== false) node.append(c);
+  return node;
+}
+
+function metaLine(target, parts) {
+  target.replaceChildren(...parts.filter(Boolean).map((p) => el("span", null, p)));
 }
 
 // fillSelect replaces the options of select and keeps the current value
@@ -71,7 +112,30 @@ function fillSelect(select, options, want) {
   else if (has(want)) select.value = String(want);
 }
 
-// ---- Language --------------------------------------------------------------
+const ICONS = {
+  playlist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 11h11M4 16h6"/><path d="M15 14.5v6l5-3z" fill="currentColor"/></svg>',
+  chevron: '<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+};
+function icon(name) {
+  const span = document.createElement("span");
+  span.innerHTML = ICONS[name];
+  return span.firstElementChild;
+}
+
+// ---- Views and language ----------------------------------------------------
+
+function setView(view) {
+  state.view = view;
+  document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === view)));
+  show($("view-download"), view === "download");
+  show($("view-history"), view === "history");
+  if (view === "history") loadHistory();
+  if (view === "download") $("url").focus();
+}
+
+document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+$("home").addEventListener("click", (e) => { e.preventDefault(); setView("download"); });
+$("history-start").addEventListener("click", () => setView("download"));
 
 function setLang(l) {
   lang = l;
@@ -79,12 +143,13 @@ function setLang(l) {
   applyStatic();
   if (!state.fetching) $("fetch").textContent = t("fetch");
   if (state.info) {
-    renderListMeta();
+    renderInfoMeta();
     renderFormats();
     updateSummary();
   }
   state.jobs.forEach(renderJob);
   renderQueueMeta();
+  renderHistory();
 }
 
 document.querySelectorAll("#lang button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
@@ -125,13 +190,18 @@ $("use-list").addEventListener("click", () => fetchInfo(state.url, true));
 function isAudio(c) { return state.audioContainers.includes(c); }
 function isList() { return state.info && state.info.kind === "playlist"; }
 
-function renderListMeta() {
+function renderInfoMeta() {
   const info = state.info;
-  if (!isList()) return;
-  $("list-title").textContent = info.title || t("playlist");
-  let meta = t("videos", { n: info.entries.length });
-  if (info.skipped) meta += " · " + t("leftOut", { n: info.skipped });
-  $("list-meta").textContent = meta;
+  if (!info) return;
+  if (isList()) {
+    $("list-title").textContent = info.title || t("playlist");
+    metaLine($("list-meta"), [
+      t("videos", { n: info.entries.length }),
+      info.skipped ? t("leftOut", { n: info.skipped }) : "",
+    ]);
+  } else {
+    metaLine($("video-meta"), [info.author, clock(info.duration)]);
+  }
 }
 
 function renderResult() {
@@ -145,37 +215,22 @@ function renderResult() {
   show($("subfolder-row"), list);
 
   if (list) {
-    renderListMeta();
     const ol = $("entries");
-    ol.replaceChildren();
-    info.entries.forEach((e, i) => {
-      const li = document.createElement("li");
-      const label = document.createElement("label");
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      box.checked = true;
+    ol.replaceChildren(...info.entries.map((e, i) => {
+      const box = el("input", { type: "checkbox", checked: true });
       box.dataset.index = i;
-      box.addEventListener("change", updateSummary);
-      const n = document.createElement("span");
-      n.className = "n";
-      n.textContent = i + 1;
-      const ti = document.createElement("span");
-      ti.className = "t";
-      ti.textContent = e.title;
-      ti.title = e.title;
-      const d = document.createElement("span");
-      d.className = "d";
-      d.textContent = clock(e.duration);
-      label.append(box, n, ti, d);
-      li.append(label);
-      ol.append(li);
-    });
+      return el("li", null, el("label", null,
+        box,
+        el("span", { className: "n", textContent: i + 1 }),
+        el("span", { className: "t", textContent: e.title, title: e.title }),
+        el("span", { className: "d", textContent: clock(e.duration) })));
+    }));
   } else {
     $("thumb").src = info.thumbnail;
     $("video-title").textContent = info.title;
-    $("video-meta").textContent = [info.author, clock(info.duration)].filter(Boolean).join(" · ");
     show($("use-list"), !!info.inList);
   }
+  renderInfoMeta();
   renderFormats();
   updateSummary();
 }
@@ -184,12 +239,9 @@ function renderFormats() {
   const box = $("formats");
   box.replaceChildren();
   const add = (c) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = c;
+    const b = el("button", { type: "button", textContent: c, title: isAudio(c) ? t("formatAudio") : t("formatVideo") });
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", String(c === state.format));
-    b.title = isAudio(c) ? t("formatAudio") : t("formatVideo");
     b.addEventListener("click", () => {
       state.format = c;
       store("format", c);
@@ -197,10 +249,9 @@ function renderFormats() {
     });
     box.append(b);
   };
+  box.append(el("span", { className: "group-label", textContent: t("formatsVideo") }));
   state.videoContainers.forEach(add);
-  const sep = document.createElement("span");
-  sep.className = "sep";
-  box.append(sep);
+  box.append(el("span", { className: "gap" }), el("span", { className: "group-label", textContent: t("formatsAudio") }));
   state.audioContainers.forEach(add);
 
   const audio = isAudio(state.format);
@@ -303,15 +354,18 @@ $("download").addEventListener("click", async () => {
   const c = state.format;
   btn.disabled = true;
   setError($("dl-error"), "");
+  const list = info.kind === "playlist";
   const body = {
     items,
     format: c,
     h264: $("h264").checked,
     outputDir: $("outdir").value.trim(),
-    folder: info.kind === "playlist" && $("subfolder").checked ? info.title : "",
+    folder: list && $("subfolder").checked ? info.title : "",
+    listId: list ? info.id : "",
+    listTitle: list ? info.title : "",
   };
   if (c === "mp3") body.mp3Bitrate = +$("mp3-bitrate").value;
-  if (info.kind === "video") {
+  if (!list) {
     body.videoItag = isAudio(c) ? 0 : +$("video-q").value;
     body.audioItag = c === "mp3" ? 0 : +$("audio-q").value;
   } else {
@@ -345,16 +399,15 @@ const finished = (j) => j.status === "saved" || j.status === "failed" || j.statu
 function jobElement(job) {
   let li = document.getElementById("job-" + job.id);
   if (li) return li;
-  li = document.createElement("li");
-  li.id = "job-" + job.id;
-  li.className = "job";
-  li.innerHTML = `
-    <div class="job-top"><span class="job-title"></span><span class="job-status"></span></div>
-    <div class="bar"><i></i></div>
-    <div class="job-sub"><span class="detail"></span><button class="ghost cancel" type="button"></button><button class="ghost open" type="button"></button></div>
-    <p class="err" hidden></p>`;
-  li.querySelector(".cancel").addEventListener("click", () => api("/api/cancel", { id: job.id }).catch(() => {}));
-  li.querySelector(".open").addEventListener("click", () => api("/api/open", { id: job.id }).catch((e) => alert(e.message)));
+  const cancel = el("button", { className: "quiet cancel", type: "button" });
+  const open = el("button", { className: "quiet open", type: "button" });
+  cancel.addEventListener("click", () => api("/api/cancel", { id: job.id }).catch(() => {}));
+  open.addEventListener("click", () => api("/api/open", { id: job.id }).catch((e) => alert(e.message)));
+  li = el("li", { id: "job-" + job.id, className: "job" },
+    el("div", { className: "job-top" }, el("span", { className: "job-title" }), el("span", { className: "job-status" })),
+    el("div", { className: "bar" }, el("i")),
+    el("div", { className: "job-sub" }, el("span", { className: "detail" }), cancel, open),
+    el("p", { className: "err", hidden: true }));
   $("queue").append(li);
   return li;
 }
@@ -364,11 +417,11 @@ function renderJob(job) {
   li.dataset.status = job.status;
   const title = li.querySelector(".job-title");
   title.textContent = job.title;
-  title.title = job.group ? `${job.title} — ${job.group}` : job.title;
+  title.title = job.group ? `${job.title} (${job.group})` : job.title;
   const st = statusKey[job.status] ? t(statusKey[job.status]) : job.status;
   li.querySelector(".job-status").textContent = `${st} · ${job.format}`;
   li.querySelector(".bar > i").style.width = `${Math.round((job.progress || 0) * 100)}%`;
-  li.querySelector(".detail").textContent = translateServer(job.detail || "");
+  li.querySelector(".detail").textContent = [job.quality, translateServer(job.detail || "")].filter(Boolean).join(" · ");
   const cancel = li.querySelector(".cancel"), open = li.querySelector(".open");
   cancel.textContent = t("cancel");
   open.textContent = t("showInFolder");
@@ -399,6 +452,175 @@ function resetJobs(list) {
 $("cancel-all").addEventListener("click", () => api("/api/cancel", { id: "" }).catch(() => {}));
 $("clear").addEventListener("click", () => api("/api/clear", {}).catch(() => {}));
 
+// ---- History ---------------------------------------------------------------
+
+async function loadHistory() {
+  if (!state.historyOn) {
+    setError($("history-error"), t("historyOff"));
+    return;
+  }
+  try {
+    const res = await api("/api/history");
+    state.history = res.entries || [];
+    state.historyLoaded = true;
+    setError($("history-error"), "");
+  } catch (e) {
+    setError($("history-error"), e.message);
+  }
+  renderHistory();
+}
+
+// groupHistory puts the files of one playlist together; a single video is
+// its own group. Groups are ordered by their newest file.
+function groupHistory(entries) {
+  const groups = [];
+  const byKey = new Map();
+  for (const e of entries) {
+    const key = e.listId ? "list:" + e.listId : "file:" + e.id;
+    let g = byKey.get(key);
+    if (!g) {
+      g = { key, list: !!e.listId, title: e.listTitle || e.title, entries: [] };
+      byKey.set(key, g);
+      groups.push(g);
+    }
+    g.entries.push(e);
+  }
+  return groups;
+}
+
+function matches(e, q) {
+  return [e.title, e.listTitle, e.folder, e.format, e.quality].some((v) => v && v.toLowerCase().includes(q));
+}
+
+function filesLabel(n) { return n === 1 ? t("oneFile") : t("nFiles", { n }); }
+
+function renderHistory() {
+  const all = state.history;
+  const total = all.reduce((sum, e) => sum + (e.size || 0), 0);
+  const lists = new Set(all.filter((e) => e.listId).map((e) => e.listId)).size;
+  const count = $("history-count");
+  count.textContent = all.length;
+  show(count, all.length > 0);
+  $("history-summary").textContent = all.length
+    ? t("historySummary", {
+      files: filesLabel(all.length),
+      lists: lists === 0 ? t("noPlaylists") : lists === 1 ? t("onePlaylist") : t("nPlaylists", { n: lists }),
+      size: formatSize(total),
+    })
+    : "";
+  show($("history-clear"), all.length > 0);
+  show($("history-search"), all.length > 0);
+  show($("history-empty"), state.historyLoaded && all.length === 0);
+
+  const q = $("history-search").value.trim().toLowerCase();
+  const shown = q ? all.filter((e) => matches(e, q)) : all;
+  show($("history-nomatch"), !!q && shown.length === 0);
+
+  const groups = groupHistory(shown);
+  if (!q && state.openGroups.size === 0 && groups.length && groups[0].list) state.openGroups.add(groups[0].key);
+  $("history-list").replaceChildren(...groups.map((g) => (g.list ? playlistGroup(g, !!q) : fileRow(g.entries[0], null))));
+}
+
+function playlistGroup(g, forceOpen) {
+  const newest = g.entries[0];
+  const folder = newest.folder;
+  const size = g.entries.reduce((sum, e) => sum + (e.size || 0), 0);
+
+  const openBtn = el("button", { className: "quiet", type: "button", textContent: t("openFolder") });
+  openBtn.addEventListener("click", (ev) => { ev.preventDefault(); openEntry(g.entries.find((e) => e.exists) || newest); });
+  const removeBtn = el("button", { className: "quiet danger", type: "button", textContent: t("removeGroup"), title: t("removeTitle") });
+  removeBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    if (confirm(t("confirmRemoveGroup", { title: g.title, n: g.entries.length }))) removeEntries(g.entries.map((e) => e.id));
+  });
+
+  const meta = el("p", { className: "meta" });
+  metaLine(meta, [filesLabel(g.entries.length), formatSize(size), t("lastSaved", { when: when(newest.savedAt) })]);
+  const where = whereLine(folder);
+
+  const head = el("summary", { className: "group-head" },
+    el("span", { className: "group-icon" }, icon("playlist")),
+    el("span", { className: "group-text" },
+      el("span", { className: "group-title", textContent: g.title, title: g.title }), meta, where),
+    el("span", { className: "group-actions" }, openBtn, removeBtn, icon("chevron")));
+
+  const body = el("div", { className: "group-body" }, ...g.entries.map((e) => fileRow(e, folder)));
+  const details = el("details", { className: "group", open: forceOpen || state.openGroups.has(g.key) }, head, body);
+  details.addEventListener("toggle", () => {
+    if (details.open) state.openGroups.add(g.key);
+    else state.openGroups.delete(g.key);
+  });
+  return details;
+}
+
+// whereLine shows the folder; long paths lose their start, so the end
+// (the folder's own name) stays readable.
+function whereLine(folder) {
+  return el("p", { className: "where", title: folder },
+    el("span", { className: "where-label", textContent: t("savedIn") }),
+    el("span", { className: "where-path" }, el("bdi", { textContent: folder })));
+}
+
+// fileRow is one saved file. groupFolder hides the folder when it is the
+// same as the playlist's.
+function fileRow(e, groupFolder) {
+  const audio = state.audioContainers.includes(e.format);
+  const meta = el("p", { className: "meta" });
+  metaLine(meta, [e.quality, formatSize(e.size), when(e.savedAt)]);
+
+  const text = el("div", { className: "file-text" },
+    el("span", { className: "file-title", textContent: e.title, title: e.title }), meta);
+  if (!e.exists) {
+    text.append(el("p", { className: "missing", textContent: t("missing") }));
+  }
+  if (e.folder !== groupFolder) {
+    text.append(whereLine(e.folder));
+  }
+
+  const open = el("button", { className: "quiet", type: "button", textContent: e.exists ? t("showInFolder") : t("openFolder") });
+  open.addEventListener("click", () => openEntry(e));
+  const remove = el("button", { className: "quiet", type: "button", textContent: t("remove"), title: t("removeTitle") });
+  remove.addEventListener("click", () => removeEntries([e.id]));
+
+  return el("div", { className: "file" },
+    el("span", { className: "fmt " + (audio ? "audio" : "video"), textContent: e.format }),
+    text,
+    el("div", { className: "file-actions" }, open, remove));
+}
+
+async function openEntry(e) {
+  try {
+    await api("/api/history/open", { id: e.id });
+  } catch (err) {
+    setError($("history-error"), err.message);
+  }
+}
+
+async function removeEntries(ids) {
+  try {
+    await api("/api/history/remove", { ids });
+    state.history = state.history.filter((e) => !ids.includes(e.id));
+    renderHistory();
+  } catch (err) {
+    setError($("history-error"), err.message);
+  }
+}
+
+$("history-search").addEventListener("input", renderHistory);
+$("history-clear").addEventListener("click", async () => {
+  if (!confirm(t("confirmClear"))) return;
+  try {
+    await api("/api/history/clear", {});
+    state.history = [];
+    state.openGroups.clear();
+    renderHistory();
+  } catch (err) {
+    setError($("history-error"), err.message);
+  }
+});
+
+// ---- Live updates ----------------------------------------------------------
+
 function connectEvents() {
   const es = new EventSource("/api/events?token=" + encodeURIComponent(token));
   es.addEventListener("open", () => show($("offline"), false));
@@ -409,6 +631,11 @@ function connectEvents() {
     renderJob(job);
     renderQueueMeta();
   });
+  es.addEventListener("history", (e) => {
+    const entry = JSON.parse(e.data);
+    if (!state.history.some((h) => h.id === entry.id)) state.history.unshift(entry);
+    renderHistory();
+  });
   es.addEventListener("error", () => show($("offline"), true));
 }
 
@@ -417,10 +644,11 @@ function connectEvents() {
 $("quit").addEventListener("click", async () => {
   if ([...state.jobs.values()].some((j) => !finished(j)) && !confirm(t("confirmQuit"))) return;
   await api("/api/quit", {}).catch(() => {});
-  const main = document.createElement("main");
-  main.innerHTML = '<section class="card"><h1></h1><p class="dim"></p></section>';
-  main.querySelector("h1").textContent = t("stopped");
-  main.querySelector("p").textContent = t("closeTab");
+  const main = el("main", { className: "view" },
+    el("section", { className: "empty-state" },
+      el("img", { src: "logo.svg", alt: "", width: 48, height: 48 }),
+      el("h1", { className: "view-title", textContent: t("stopped") }),
+      el("p", { textContent: t("closeTab") })));
   document.body.replaceChildren(main);
 });
 
@@ -437,6 +665,7 @@ async function init() {
     state.videoContainers = s.videoContainers;
     state.audioContainers = s.audioContainers;
     if (Array.isArray(s.mp3Bitrates)) state.mp3Bitrates = s.mp3Bitrates;
+    state.historyOn = s.history !== false;
     state.ffmpeg = s.ffmpeg;
     state.ffmpegHint = s.ffmpegHint;
     const fmt = recall("format");
@@ -448,6 +677,7 @@ async function init() {
     return;
   }
   connectEvents();
+  loadHistory();
   $("url").focus();
 }
 

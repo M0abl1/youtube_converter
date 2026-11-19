@@ -31,6 +31,7 @@ import (
 
 	"github.com/M0abl1/youtube_converter/pkg/downloader"
 	"github.com/M0abl1/youtube_converter/pkg/ffmpeg"
+	"github.com/M0abl1/youtube_converter/pkg/history"
 	"github.com/M0abl1/youtube_converter/pkg/utils"
 	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
@@ -47,6 +48,8 @@ type Config struct {
 	// IdleTimeout stops the server when no page has been connected for this
 	// long and nothing is downloading. 0 disables it.
 	IdleTimeout time.Duration
+	// History records saved files; nil turns the history off.
+	History *history.Store
 }
 
 // Server is the GUI backend. Create it with New.
@@ -83,6 +86,8 @@ type Job struct {
 	Detail   string  `json:"detail,omitempty"` // speed and time left, or size when saved
 	Error    string  `json:"error,omitempty"`
 	Path     string  `json:"path,omitempty"`
+	Quality  string  `json:"quality,omitempty"` // chosen streams, once known
+	ListID   string  `json:"listId,omitempty"`  // playlist the video comes from
 
 	opts   downloader.Options
 	sel    downloader.Selection
@@ -191,6 +196,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/clear", s.api(s.handleClear))
 	mux.HandleFunc("POST /api/open", s.api(s.handleOpen))
 	mux.HandleFunc("POST /api/quit", s.api(s.handleQuit))
+	mux.HandleFunc("GET /api/history", s.api(s.handleHistory))
+	mux.HandleFunc("POST /api/history/open", s.api(s.handleHistoryOpen))
+	mux.HandleFunc("POST /api/history/remove", s.api(s.handleHistoryRemove))
+	mux.HandleFunc("POST /api/history/clear", s.api(s.handleHistoryClear))
 	mux.HandleFunc("GET /api/events", s.handleEvents)
 	return s.guard(mux)
 }
@@ -294,6 +303,7 @@ func (s *Server) handleState(_ *http.Request) (any, error) {
 		"videoContainers": downloader.VideoContainers,
 		"audioContainers": downloader.AudioContainers,
 		"mp3Bitrates":     downloader.MP3Bitrates,
+		"history":         s.cfg.History != nil,
 		"jobs":            jobs,
 	}, nil
 }
@@ -402,6 +412,9 @@ type downloadRequest struct {
 	MP3Bitrate   int    `json:"mp3Bitrate"`   // kbps; 0 = best VBR
 	OutputDir string `json:"outputDir"`
 	Folder    string `json:"folder"` // playlist title: save into a sub-folder
+	// The playlist the items come from, for the history; empty for a video.
+	ListID    string `json:"listId"`
+	ListTitle string `json:"listTitle"`
 }
 
 func (s *Server) handleDownload(r *http.Request) (any, error) {
@@ -472,8 +485,8 @@ func (s *Server) handleDownload(r *http.Request) (any, error) {
 		}
 		s.nextID++
 		j := &Job{
-			ID: strconv.Itoa(s.nextID), VideoID: id, Title: it.Title, Group: in.Folder,
-			Format: container, Status: statusQueued, opts: opts, sel: sel,
+			ID: strconv.Itoa(s.nextID), VideoID: id, Title: it.Title, Group: in.ListTitle,
+			ListID: in.ListID, Format: container, Status: statusQueued, opts: opts, sel: sel,
 		}
 		if j.Title == "" {
 			j.Title = id
@@ -698,9 +711,119 @@ func (s *Server) worker(ctx context.Context) {
 				}
 				j.Status, j.Path, j.Progress = statusSaved, path, 1
 				j.Detail = fmt.Sprintf("%s · %.1fs", utils.FormatSize(size), time.Since(j.start).Seconds())
+				s.record(j, size)
 			}
 		})
 	}
+}
+
+// record adds a saved job to the history and tells the pages. Called with mu held.
+func (s *Server) record(j *Job, size int64) {
+	if s.cfg.History == nil {
+		return
+	}
+	e, err := s.cfg.History.Add(history.Entry{
+		VideoID: j.VideoID, Title: j.Title, Format: j.Format, Quality: j.Quality,
+		Path: j.Path, Size: size, ListID: j.ListID, ListTitle: j.Group,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "ytconv: could not save the history:", err)
+		return
+	}
+	s.broadcastLocked("history", historyItem(e))
+}
+
+// historyEntry is an Entry plus its folder and whether the file is still there.
+type historyEntry struct {
+	history.Entry
+	Folder string `json:"folder"`
+	Exists bool   `json:"exists"`
+}
+
+func historyItem(e history.Entry) historyEntry {
+	_, err := os.Stat(e.Path)
+	return historyEntry{Entry: e, Folder: filepath.Dir(e.Path), Exists: err == nil}
+}
+
+func (s *Server) historyStore() (*history.Store, error) {
+	if s.cfg.History == nil {
+		return nil, badRequest("the download history is turned off")
+	}
+	return s.cfg.History, nil
+}
+
+func (s *Server) handleHistory(_ *http.Request) (any, error) {
+	h, err := s.historyStore()
+	if err != nil {
+		return nil, err
+	}
+	list := h.List()
+	out := make([]historyEntry, len(list))
+	for i, e := range list {
+		out[i] = historyItem(e)
+	}
+	return map[string]any{"entries": out}, nil
+}
+
+// handleHistoryOpen shows a recorded file in the file manager, or its folder
+// when the file was moved or deleted. Only paths from the history are opened.
+func (s *Server) handleHistoryOpen(r *http.Request) (any, error) {
+	var in struct {
+		ID string `json:"id"`
+	}
+	if err := decode(r, &in); err != nil {
+		return nil, err
+	}
+	h, err := s.historyStore()
+	if err != nil {
+		return nil, err
+	}
+	e, ok := h.Get(in.ID)
+	if !ok {
+		return nil, badRequest("this download is not in the history anymore")
+	}
+	if _, err := os.Stat(e.Path); err == nil {
+		if err := revealFile(e.Path); err != nil {
+			return nil, err
+		}
+		return map[string]bool{"ok": true}, nil
+	}
+	dir := filepath.Dir(e.Path)
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return nil, badRequest("the file and its folder are gone: %s", dir)
+	}
+	if err := openFolder(dir); err != nil {
+		return nil, err
+	}
+	return map[string]bool{"ok": true}, nil
+}
+
+func (s *Server) handleHistoryRemove(r *http.Request) (any, error) {
+	var in struct {
+		IDs []string `json:"ids"`
+	}
+	if err := decode(r, &in); err != nil {
+		return nil, err
+	}
+	h, err := s.historyStore()
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Remove(in.IDs...); err != nil {
+		return nil, err
+	}
+	return map[string]bool{"ok": true}, nil
+}
+
+func (s *Server) handleHistoryClear(_ *http.Request) (any, error) {
+	h, err := s.historyStore()
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Clear(); err != nil {
+		return nil, err
+	}
+	return map[string]bool{"ok": true}, nil
 }
 
 // busy reports whether a job is queued or running.
@@ -769,3 +892,9 @@ func (r *jobReporter) Media(done, total time.Duration) {
 }
 
 func (r *jobReporter) End(downloader.Stage, error) {}
+
+// Picked shows the chosen streams on the job; the history keeps them too.
+func (r *jobReporter) Picked(vf *youtube.Format, af youtube.Format, o downloader.Options) {
+	q := downloader.QualityLabel(vf, af, o)
+	r.s.update(r.j, func(j *Job) { j.Quality = q })
+}

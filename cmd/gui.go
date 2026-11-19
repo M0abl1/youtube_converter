@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/M0abl1/youtube_converter/pkg/gui"
+	"github.com/M0abl1/youtube_converter/pkg/history"
 	"github.com/spf13/cobra"
 )
 
@@ -49,13 +50,25 @@ func runGUI(port int, open bool) error {
 	if home, err := os.UserHomeDir(); err == nil {
 		out = filepath.Join(home, "Downloads")
 	}
-	s := gui.New(gui.Config{
+	cfg := gui.Config{
 		Version:     version,
 		OutputDir:   out,
 		TmpDir:      os.TempDir(),
 		Connections: 8,
 		IdleTimeout: 30 * time.Second,
-	})
+	}
+	path, err := history.DefaultPath()
+	if env := os.Getenv("YTCONV_HISTORY"); env != "" {
+		path, err = env, nil
+	}
+	if err == nil {
+		if h, err := history.Open(path); err == nil {
+			cfg.History = h
+		} else {
+			fmt.Fprintln(os.Stderr, "ytconv: download history is off:", err)
+		}
+	}
+	s := gui.New(cfg)
 	ln, url, err := s.Listen(port)
 	if err != nil {
 		return err

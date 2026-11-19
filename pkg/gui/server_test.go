@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/M0abl1/youtube_converter/pkg/downloader"
+	"github.com/M0abl1/youtube_converter/pkg/history"
 	"github.com/M0abl1/youtube_converter/pkg/youtube"
 )
 
@@ -21,7 +22,11 @@ import (
 // the same port as the server.
 func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
-	s := New(Config{Version: "test", OutputDir: t.TempDir(), TmpDir: t.TempDir()})
+	h, err := history.Open(filepath.Join(t.TempDir(), "history.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(Config{Version: "test", OutputDir: t.TempDir(), TmpDir: t.TempDir(), History: h})
 	s.getVideo = func(_ context.Context, id string) (*youtube.Video, error) {
 		return &youtube.Video{ID: id, Title: "Big Buck Bunny", Author: "Blender", Duration: 634 * time.Second, Formats: []youtube.Format{
 			{Itag: 137, Video: true, Codec: "h264", Ext: "mp4", Width: 1920, Height: 1080, Bitrate: 4_000_000, Size: 300 << 20},
@@ -386,5 +391,54 @@ func TestDownloadQualityPresets(t *testing.T) {
 	}
 	if j := <-got; j.opts.AudioBitrate != 192 {
 		t.Errorf("mp3 bitrate: %+v", j.opts)
+	}
+}
+
+func TestHistory(t *testing.T) {
+	s, base := testServer(t)
+	two := []map[string]string{{"id": "aqz-KE-bpKQ", "title": "One"}, {"id": "LYsaKn8FRhc", "title": "Two"}}
+	code, res := call(t, s, base, "/api/download", map[string]any{
+		"items": two, "format": "mp4", "outputDir": s.cfg.OutputDir,
+		"folder": "My List", "listId": "PL123", "listTitle": "My List",
+	})
+	if code != 200 {
+		t.Fatalf("download: %d %v", code, res)
+	}
+
+	// Only the saved video is recorded (the second one fails in testServer).
+	var entries []any
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		_, res = call(t, s, base, "/api/history", nil)
+		entries = res["entries"].([]any)
+		if len(entries) > 0 && !s.busy() {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("history: %v", entries)
+	}
+	e := entries[0].(map[string]any)
+	if e["videoId"] != "aqz-KE-bpKQ" || e["listId"] != "PL123" || e["listTitle"] != "My List" ||
+		e["exists"] != true || e["folder"] != filepath.Join(s.cfg.OutputDir, "my-list") {
+		t.Errorf("entry: %v", e)
+	}
+
+	os.Remove(e["path"].(string))
+	if _, res = call(t, s, base, "/api/history", nil); res["entries"].([]any)[0].(map[string]any)["exists"] != false {
+		t.Error("deleted file still reported as existing")
+	}
+	if code, _ := call(t, s, base, "/api/history/open", map[string]any{"id": "nope"}); code != 400 {
+		t.Errorf("open unknown id: %d", code)
+	}
+	if code, _ := call(t, s, base, "/api/history/remove", map[string]any{"ids": []string{e["id"].(string)}}); code != 200 {
+		t.Errorf("remove: %d", code)
+	}
+	if _, res = call(t, s, base, "/api/history", nil); len(res["entries"].([]any)) != 0 {
+		t.Errorf("after remove: %v", res)
+	}
+	if code, _ := call(t, s, base, "/api/history/clear", map[string]any{}); code != 200 {
+		t.Errorf("clear: %d", code)
 	}
 }

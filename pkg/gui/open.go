@@ -35,6 +35,20 @@ func revealFile(path string) error {
 	return startDetached(cmd)
 }
 
+// openFolder opens dir in the system file manager.
+func openFolder(dir string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", dir)
+	case "darwin":
+		cmd = exec.Command("open", dir)
+	default:
+		cmd = exec.Command("xdg-open", dir)
+	}
+	return startDetached(cmd)
+}
+
 func startDetached(cmd *exec.Cmd) error {
 	if err := cmd.Start(); err != nil {
 		return err

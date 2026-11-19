@@ -3,29 +3,47 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>ytconv</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="top">
-    <div class="brand">
-      <span class="badge">ytconv</span>
-      <span id="version" class="dim"></span>
-    </div>
-    <div class="top-actions">
-      <div id="lang" class="lang" role="radiogroup" aria-label="Language / Idioma">
-        <button type="button" role="radio" data-lang="pt" aria-checked="false" title="Português">PT</button>
-        <button type="button" role="radio" data-lang="en" aria-checked="false" title="English">EN</button>
+    <div class="top-inner">
+      <a class="brand" href="#" id="home" aria-label="ytconv">
+        <img src="logo.svg" alt="" width="34" height="34">
+        <span class="wordmark">ytconv</span>
+        <span id="version" class="version"></span>
+      </a>
+
+      <nav class="tabs" role="tablist" aria-label="ytconv">
+        <button id="tab-download" class="tab" role="tab" type="button" aria-selected="true" aria-controls="view-download" data-view="download">
+          <span data-i18n="tabDownload">Download</span>
+        </button>
+        <button id="tab-history" class="tab" role="tab" type="button" aria-selected="false" aria-controls="view-history" data-view="history">
+          <span data-i18n="tabHistory">History</span>
+          <span id="history-count" class="count" hidden></span>
+        </button>
+      </nav>
+
+      <div class="top-actions">
+        <div id="lang" class="lang" role="radiogroup" aria-label="Language / Idioma">
+          <button type="button" role="radio" data-lang="pt" aria-checked="false" title="Português">PT</button>
+          <button type="button" role="radio" data-lang="en" aria-checked="false" title="English">EN</button>
+        </div>
+        <button id="quit" class="quiet" type="button" data-i18n="quit" data-i18n-title="quitTitle">Quit</button>
       </div>
-      <button id="quit" class="ghost" type="button" data-i18n="quit" data-i18n-title="quitTitle">Quit</button>
     </div>
   </header>
 
-  <div id="offline" class="banner" hidden data-i18n="offline">ytconv is not running anymore. Start it again to keep downloading.</div>
+  <div id="offline" class="banner" role="status" hidden data-i18n="offline">ytconv is not running anymore. Start it again to keep downloading.</div>
 
-  <main>
-    <section class="card">
+  <!-- Download ------------------------------------------------------------ -->
+  <main id="view-download" class="view" role="tabpanel" aria-labelledby="tab-download">
+    <section class="intake">
+      <h1 class="intake-title" data-i18n="intakeTitle">Turn a YouTube link into a file</h1>
+      <p class="intake-sub" data-i18n="intakeSub">A video or a whole playlist, in the format and quality you choose. Everything stays on this computer.</p>
       <form id="fetch-form" class="fetch" autocomplete="off">
         <label for="url" class="sr-only" data-i18n="linkLabel">YouTube link</label>
         <input id="url" name="url" type="text" spellcheck="false"
@@ -35,25 +53,25 @@
       <p id="fetch-error" class="error" role="alert" hidden></p>
     </section>
 
-    <section id="result" class="card" hidden>
+    <section id="result" class="panel" hidden>
       <div id="video-head" class="video-head" hidden>
         <img id="thumb" alt="" width="192" height="108">
-        <div>
-          <h1 id="video-title"></h1>
-          <p id="video-meta" class="dim"></p>
-          <button id="use-list" class="link" type="button" hidden data-i18n="useList">This video is part of a playlist — download the whole playlist instead</button>
+        <div class="video-text">
+          <h2 id="video-title"></h2>
+          <p id="video-meta" class="meta"></p>
+          <button id="use-list" class="link" type="button" hidden data-i18n="useList">This video is part of a playlist. Download the whole playlist instead</button>
         </div>
       </div>
 
       <div id="list-box" hidden>
         <div class="list-head">
           <div>
-            <h1 id="list-title"></h1>
-            <p id="list-meta" class="dim"></p>
+            <h2 id="list-title"></h2>
+            <p id="list-meta" class="meta"></p>
           </div>
           <div class="list-actions">
-            <button id="select-all" class="ghost" type="button" data-i18n="all">All</button>
-            <button id="select-none" class="ghost" type="button" data-i18n="none">None</button>
+            <button id="select-all" class="quiet" type="button" data-i18n="all">All</button>
+            <button id="select-none" class="quiet" type="button" data-i18n="none">None</button>
           </div>
         </div>
         <ol id="entries" class="entries"></ol>
@@ -62,7 +80,7 @@
       <div class="options">
         <div class="field">
           <span class="label" id="format-label" data-i18n="format">Format</span>
-          <div id="formats" class="segmented" role="radiogroup" aria-labelledby="format-label"></div>
+          <div id="formats" class="formats" role="radiogroup" aria-labelledby="format-label"></div>
         </div>
 
         <label id="h264-row" class="check">
@@ -98,7 +116,7 @@
           <span class="label" data-i18n="mp3Bitrate">MP3 bitrate</span>
           <select id="mp3-bitrate"></select>
         </label>
-        <p id="quality-hint" class="hint dim"></p>
+        <p id="quality-hint" class="hint"></p>
 
         <label class="field">
           <span class="label" data-i18n="saveTo">Save to</span>
@@ -118,17 +136,41 @@
       </div>
     </section>
 
-    <section class="queue-section">
-      <div class="queue-head">
-        <h2><span data-i18n="downloads">Downloads</span> <span id="queue-count" class="dim"></span></h2>
-        <div class="queue-actions">
-          <button id="cancel-all" class="ghost" type="button" hidden data-i18n="cancelAll">Cancel all</button>
-          <button id="clear" class="ghost" type="button" hidden data-i18n="clearFinished">Clear finished</button>
+    <section class="queue-section" aria-labelledby="queue-title">
+      <div class="section-head">
+        <h2 id="queue-title"><span data-i18n="queue">Queue</span> <span id="queue-count" class="dim"></span></h2>
+        <div class="section-actions">
+          <button id="cancel-all" class="quiet" type="button" hidden data-i18n="cancelAll">Cancel all</button>
+          <button id="clear" class="quiet" type="button" hidden data-i18n="clearFinished">Clear finished</button>
         </div>
       </div>
       <ol id="queue" class="queue"></ol>
-      <p id="queue-empty" class="empty dim" data-i18n="queueEmpty">Nothing here yet. Fetch a link above to start.</p>
+      <p id="queue-empty" class="empty" data-i18n="queueEmpty">Downloads you start show up here while they run.</p>
     </section>
+  </main>
+
+  <!-- History ------------------------------------------------------------- -->
+  <main id="view-history" class="view" role="tabpanel" aria-labelledby="tab-history" hidden>
+    <section class="history-head">
+      <div>
+        <h1 class="view-title" data-i18n="historyTitle">Downloaded files</h1>
+        <p id="history-summary" class="meta"></p>
+      </div>
+      <div class="history-tools">
+        <label for="history-search" class="sr-only" data-i18n="historySearch">Search the history</label>
+        <input id="history-search" type="search" spellcheck="false" placeholder="Search by title, playlist or folder" data-i18n-ph="historySearchPh">
+        <button id="history-clear" class="quiet danger" type="button" data-i18n="historyClear">Clear history</button>
+      </div>
+    </section>
+    <p id="history-error" class="error" role="alert" hidden></p>
+    <div id="history-list" class="history-list"></div>
+    <div id="history-empty" class="empty-state" hidden>
+      <img src="logo.svg" alt="" width="48" height="48">
+      <p data-i18n="historyEmpty">Nothing downloaded yet. Every file you save shows up here, with the folder it went to.</p>
+      <button id="history-start" class="primary" type="button" data-i18n="historyStart">Download something</button>
+    </div>
+    <p id="history-nomatch" class="empty" hidden data-i18n="historyNoMatch">No download matches this search.</p>
+    <p class="history-note" data-i18n="historyNote">The history is saved only on this computer. Removing an item from it does not delete the file.</p>
   </main>
 
   <script src="i18n.js"></script>

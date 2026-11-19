@@ -388,6 +388,33 @@ func Exists(dir, title, id, container string) bool {
 	return err == nil
 }
 
+// Picker is an optional Reporter extension: Fetch tells it which streams
+// were chosen, before downloading them.
+type Picker interface {
+	Picked(vf *youtube.Format, af youtube.Format, o Options)
+}
+
+// QualityLabel describes the chosen streams for people, e.g.
+// "1080p60 H.264, AAC 128 kbps" or "MP3 192 kbps".
+func QualityLabel(vf *youtube.Format, af youtube.Format, o Options) string {
+	audio := fmt.Sprintf("%s %d kbps", af.CodecLabel(), af.Bitrate/1000)
+	if o.Container == "mp3" {
+		if o.AudioBitrate > 0 {
+			audio = fmt.Sprintf("MP3 %d kbps", o.AudioBitrate)
+		} else {
+			audio = "MP3 VBR"
+		}
+	}
+	if vf == nil {
+		return audio
+	}
+	video := vf.Resolution() + " " + vf.CodecLabel()
+	if o.ForceH264 && vf.Codec != "h264" {
+		video = vf.Resolution() + " H.264"
+	}
+	return video + ", " + audio
+}
+
 // Fetch gets the video and downloads it with the streams chosen by sel. A
 // 403 on the stream URLs is retried once with freshly fetched URLs. onVideo,
 // if set, is called after each successful fetch.
@@ -404,6 +431,9 @@ func Fetch(ctx context.Context, c *youtube.Client, id string, o Options, sel Sel
 		vf, af, err := Select(v, o, sel)
 		if err != nil {
 			return "", v, err
+		}
+		if p, ok := r.(Picker); ok {
+			p.Picked(vf, af, o)
 		}
 		path, err := Run(ctx, c, v, vf, af, o, r)
 		if err == nil {
